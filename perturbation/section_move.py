@@ -417,6 +417,7 @@ if __name__ == "__main__":
      
         src_pefile = input_dir+sample
         dst_pefile = '../sample/section_move_sample/'+sample.replace('.exe','_new.exe')
+        dst_pefile = '../sample/section_move_sample/'+sample.replace('.dll','_new.dll')
     
         dst_section_name = ".new"
         reloc_section_name = ".reloc"

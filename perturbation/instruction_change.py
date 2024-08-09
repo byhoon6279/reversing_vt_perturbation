@@ -251,8 +251,10 @@ def disassemble_and_modify(filepath, output_filepath):
                         
                     else:
                         modified_text_section.extend(bytes(instruction))
+                        continue
         else:
             modified_text_section.extend(bytes(instruction))
+            continue
             
     print("modified_section : ",len(modified_text_section), "| original section : ", len(section_data), "|", section.SizeOfRawData)
     

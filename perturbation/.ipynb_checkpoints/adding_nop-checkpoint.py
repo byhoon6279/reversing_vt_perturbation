@@ -1,3 +1,4 @@
+#1빼고 다됨 여기서 고쳐야됨
 import distorm3
 import pefile
 from pe_library import *
@@ -8,10 +9,50 @@ from keystone import *
 import pickle
 import shutil
 import r2pipe
-from common_function import *
+from tqdm import tqdm
 
 old_rawPointer = 0
 old_nextPointer = 0
+
+def modify_headers(file_path, new_text, fin = None):
+    pe = pefile.PE(file_path)
+    file_format = '.'+file_path.split('.')[-1]
+
+    # Find the .text section
+    text_section = None
+    for section in pe.sections:
+        if section.Name.strip(b'\x00').lower() == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE':
+            text_section = section
+            break
+
+    if text_section is None:
+        print("Error: .text section not found")
+        return
+
+    text_section.Misc = len(new_text)
+    new_size = int((len(new_text) + pe.OPTIONAL_HEADER.FileAlignment - 1) / pe.OPTIONAL_HEADER.FileAlignment) * pe.OPTIONAL_HEADER.FileAlignment
+    new_text = new_text + b'\x00' * (new_size - len(new_text))
+
+    size_diff = new_size - text_section.SizeOfRawData
+    
+    if fin:
+        print(f"[+] new Size of Raw Data: {hex(new_size)}")
+        print(f"[+] size diff: {hex(size_diff)}")
+
+    text_section.SizeOfRawData = new_size
+    pe.OPTIONAL_HEADER.SizeOfImage = max(pe.OPTIONAL_HEADER.SizeOfImage, text_section.VirtualAddress + new_size)
+
+    prev_section = text_section
+    for section in pe.sections:
+        if section.VirtualAddress > text_section.VirtualAddress:
+            section.VirtualAddress = (prev_section.VirtualAddress + 
+                                      (prev_section.Misc + pe.OPTIONAL_HEADER.SectionAlignment - 1) // pe.OPTIONAL_HEADER.SectionAlignment * pe.OPTIONAL_HEADER.SectionAlignment)
+            section.PointerToRawData += size_diff
+            prev_section = section
+
+    pe.write(filename=file_path.replace(file_format, "_tmp"+file_format))
+    pe.close()
+    return new_text
 
 def modify_section(file_path, new_text, save_dir, number_of_nop, fin = None):
     global old_rawPointer
@@ -22,8 +63,7 @@ def modify_section(file_path, new_text, save_dir, number_of_nop, fin = None):
     pe = pefile.PE(file_path)
         
     for section in pe.sections:
-        #if section.Name.strip(b'\x00').lower() == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE':
-        if section.Name.decode().strip('\x00').lower() in ['.text', 'text', 'code', '.code']:
+        if section.Name.strip(b'\x00').lower() == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE':
             text_section = section
             break
     
@@ -126,11 +166,10 @@ def modify_rdata(save_dir, modified_address, fin = None):
     # PE 파일 로드
     file_path = save_dir
     pe = pefile.PE(file_path)
-    valid_section_names = ['.text', 'text', 'code', '.code']
 
     # .rdata 섹션 찾기
     for section in pe.sections:
-        if section.Name.decode().strip('\x00').lower() in ['.data', '.rdata', 'data', 'const', 'rdata']: # add malware's custom section name if you want
+        if section.Name.decode().strip('\x00').lower() in ['.data', '.rdata', 'data', 'const']: # add malware's custom section name if you want
             section = section
             rdata_start = section.VirtualAddress
             rdata_end = rdata_start + section.Misc_VirtualSize
@@ -142,8 +181,7 @@ def modify_rdata(save_dir, modified_address, fin = None):
 
             # 절대 주소 필터링을 위한 범위 설정
             image_base = pe.OPTIONAL_HEADER.ImageBase
-            #text_section = next(section for section in pe.sections if section.Name.rstrip(b'\x00').lower() == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE')
-            text_section = next(section for section in pe.sections if any(section.Name.decode().strip('\x00').lower() == name for name in valid_section_names))
+            text_section = next(section for section in pe.sections if section.Name.rstrip(b'\x00').lower() == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE')
             text_start = text_section.VirtualAddress + image_base
             text_end = text_start + text_section.Misc_VirtualSize
 
@@ -491,6 +529,54 @@ def calc_offset(target_address, instr, ori_operand, op_code):
 
     return new_ins, op_code, operand 
 
+def hex_string_to_bytes(hex_string):
+    # 입력 문자열에서 공백 제거 및 소문자 처리
+    hex_string = hex_string.strip().upper()
+    
+    # 16진수 문자열을 바이트로 변환
+    bytes_result = bytes.fromhex(hex_string)
+    
+    # 바이트 문자열을 반환
+    return bytes_result
+
+
+def is_prefixes(hex_string):
+    # 프리픽스 집합 정의
+    prefixes = {
+        '26', '2E', '36', '3E', '64', '65',  # Segment prefixes
+        '66',  # Operand size override prefix
+        '67',  # Address size override prefix
+        'F0',  # Lock prefix
+        'F2', 'F3'  # Repeat prefixes
+    }
+    
+    # 입력된 문자열을 대문자로 변환
+    hex_string = hex_string.upper()
+    
+    # 결과를 저장할 문자열
+    result = hex_string
+    removed_prefixes = []
+    
+    # 프리픽스를 제거할 때 사용할 변수
+    while len(result) > 2:
+        # 앞의 2바이트 추출
+        first_two_bytes = result[:2]
+        remaining_bytes = result[2:]
+        
+        # 2바이트를 검사하여 프리픽스인지 확인
+        if first_two_bytes in prefixes:
+            # 프리픽스가 포함된 경우 제거
+            removed_prefixes.append(first_two_bytes)
+            result = remaining_bytes
+        else:
+            # 프리픽스가 없으면 반복 종료
+            break
+            
+    removed_prefixes_str = ''.join(removed_prefixes)
+    
+    # 결과 반환: 지워진 프리픽스와 프리픽스가 지워진 문자열
+    return hex_string_to_bytes(removed_prefixes_str), hex_string_to_bytes(result)
+
 def make_new_text(file_path ,number_of_nop):
     
     global old_rawPointer
@@ -502,8 +588,7 @@ def make_new_text(file_path ,number_of_nop):
     prev_section = None   
     
     for section in pe.sections:
-        #if section.Name.strip(b'\x00') == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE':
-        if section.Name.strip(b'\x00').lower() in ['.text', 'text', 'code', '.code']:
+        if section.Name.strip(b'\x00') == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE':
             old_nextPointer = section.PointerToRawData
             text_section = section
             break
@@ -563,7 +648,9 @@ def make_new_text(file_path ,number_of_nop):
     '7E': '0F8E',  # JLE/JNG -> JLE/JNG
     '7F': '0F8F',  # JG/JNLE -> JG/JNLE
     'EB': 'E9',    # JMP -> JMP
-    'E2': '0F85'  # loop
+    'E2': '0F85',  # loop
+    'E0': '0F8A',  #loopne    
+    'E1': '0F82'  #loope   
     }
     
     nop_cnt = 0
@@ -574,7 +661,9 @@ def make_new_text(file_path ,number_of_nop):
     checking_target_address={}
     modified_address={}
     
-    for instr in decoder:
+    #for instr in decoder:
+    for instr in tqdm(decoder):
+        time.sleep(0.0001)
         
         checker_80 = 0
         
@@ -587,13 +676,19 @@ def make_new_text(file_path ,number_of_nop):
         present_address = (instr.ip+nop_cnt+increase_instr)
         
         modified_address[instr.ip] = (present_address)
-
-                
+        
         if ('int3' in disasm) or ('ret' in disasm) or ('nop' in disasm):
             new_text += present_instr
             continue
-
+            
+        prefixes = None
+        
+        prefixes, present_instr = is_prefixes(present_instr.hex().upper())\
+        
+        #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
+        
         if 'REL' not in code_to_string(instr.code): # 절대주소
+            #print("  sibale??")
             value = address_pattern_short.findall(str(instr))
             
             if value:
@@ -635,7 +730,7 @@ def make_new_text(file_path ,number_of_nop):
                 
                 if len(operand)>8:
                     operand = operand[1:]
-                    print("operand : ",operand, len(operand))
+                    #print("operand : ",operand, len(operand))
                     
                 if len(operand)<8:
                     operand = '0'+operand
@@ -645,7 +740,6 @@ def make_new_text(file_path ,number_of_nop):
                 
                 if checker_80 ==1:
                     op_code = present_instr.hex()[:6]
-                    #print("checker_80 : ",checker_80, op_code)
                     new_ins = op_code+operand+'80'
                     new_ins = new_ins.replace('0080','80',1)
                     
@@ -659,23 +753,17 @@ def make_new_text(file_path ,number_of_nop):
                 checking_target_address[present_address] = target_address
 
                 if should_add_nop(str(instr)):
-#                     if hex(instr.ip) in address_dict:
-#                         continue
-
-#                     else:
                     new_text += (b'\x90'*number_of_nop)
                     nop_cnt+=(1*number_of_nop)
                     continue
                 else:
                     continue
                     
-            else:
-
-#                 if hex(instr.ip) in address_dict:
-#                     new_text += present_instr
-#                     continue
-
-#                 else:
+            else:                
+                if prefixes:
+                    ins = prefixes+present_instr
+                    present_instr = ins
+                
                 new_text += present_instr
                 if should_add_nop(str(instr)):
                     new_text += (b'\x90'*number_of_nop)
@@ -685,25 +773,22 @@ def make_new_text(file_path ,number_of_nop):
                     continue
 
         if 'REL' in code_to_string(instr.code):
-
-            matches = address_pattern_long.findall(str(instr))
-            
-            address  = int(matches[0].replace('h',''),16)
+                        
             op_code = present_instr.hex()[:2]
             operand = present_instr.hex()[2:]
+            
+            if 'ptr' in str(instr) and len(operand)>8:
+                op_code = present_instr.hex()[:4]
+                operand = present_instr.hex()[4:]
+            
             ori_operand = operand
-            present_address = (instr.ip+nop_cnt+increase_instr)
+            present_address = (instr.ip+nop_cnt+increase_instr) 
+            
+
+            address = instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))
 
             if instr.ip < address:
-                caller_callee_dict[instr.ip] = address
-                #print("밑으로 뛰")
-                if 'ptr' in str(instr) and len(operand)>8:
-                    
-                    op_code = present_instr.hex()[:4]
-                    operand = present_instr.hex()[4:]
-                    
-                    
-                operand = to_little_endian(operand)              
+                operand = to_little_endian(operand)
                 int_operand = hex_to_signed_int(operand)
                 adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, (image_base+virtual_address), number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long)
     
@@ -724,6 +809,9 @@ def make_new_text(file_path ,number_of_nop):
                 
                 if len(operand) != 8:
                     operand += '0' * (8-len(operand))
+                    
+                if prefixes:
+                    new_ins = prefixes.hex()+op_code+operand
                 
                 new_ins = op_code+operand
 
@@ -762,7 +850,6 @@ def make_new_text(file_path ,number_of_nop):
                                 op_code = preprocessing_code+op_code
                                 new_ins_len = 10
                                 
-
                             int_operand = target_address - present_address - new_ins_len
 
                             parm_operand = hex(int_operand).replace('0x','',1)
@@ -786,29 +873,25 @@ def make_new_text(file_path ,number_of_nop):
                                     operand = operand.replace('0','',1)
         
                     new_ins = op_code+operand
-
+                              
                 mc_code =  bytes.fromhex((new_ins))
 
                 new_text += mc_code  
                 checking_target_address[present_address] = target_address
+                caller_callee_dict[instr.ip] = address  
 
                 if should_add_nop(str(instr)):
-                    if hex(instr.ip) in address_dict:
-                        continue
-                    else:
-                        new_text += (b'\x90'*number_of_nop)
-                        nop_cnt+=(1*number_of_nop)
-                        continue
+                    new_text += (b'\x90'*number_of_nop)
+                    nop_cnt+=(1*number_of_nop)
+                    continue
                 else:
                     continue
 
             elif instr.ip > address:
-                #print("위로 뛸꺼고")
-                caller_callee_dict[instr.ip] = address
-                if 'ptr' in str(instr) and len(operand)>8:
-                    op_code = present_instr.hex()[:4]
-                    operand = present_instr.hex()[4:]
-                
+                #print("    위로 뛸꺼고")
+                                    
+                address = instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))
+
                 operand = to_little_endian(operand)
                 int_operand = hex_to_signed_int(operand)
 
@@ -826,6 +909,9 @@ def make_new_text(file_path ,number_of_nop):
                 offset = target_address - present_address - len(instr) 
                 operand = negative_to_little_endian_hex(offset)
                 new_ins = op_code+operand
+                
+                if prefixes:
+                    new_ins = prefixes.hex()+op_code+operand
       
                 if len(present_instr.hex()) != len(new_ins):
                     if 'ff' in new_ins:
@@ -865,40 +951,35 @@ def make_new_text(file_path ,number_of_nop):
                             increase_instr += new_ins_len - len(instr)
                             jump_dict[instr.ip] = new_ins_len - len(instr)
                             
-                        new_ins = op_code+operand                    
+                        new_ins = op_code+operand   
 
                 mc_code =  bytes.fromhex((new_ins))
                 new_text += mc_code
                 checking_target_address[present_address] = target_address
+                caller_callee_dict[instr.ip] = address
 
                 if should_add_nop(str(instr)):
-                    if hex(instr.ip) in address_dict:
-                        continue
-
-                    else:
-                        new_text += (b'\x90'*number_of_nop)
-                        nop_cnt+=(1*number_of_nop)
-                        continue
+                    new_text += (b'\x90'*number_of_nop)
+                    nop_cnt+=(1*number_of_nop)
+                    continue
+                    
                 else:
                     continue    
         else:
             print("나머지?? : ",instr.ip, instr)
             continue
 
-    #print(f"[++] original .text section length : {text_section.Misc}")
-    #print(f"[++] new .text section length : {len(new_text)}")
-
     return new_text, modified_address , caller_callee_dict, checking_target_address
 
 def calc_offset(target_address, address, ori_operand, op_code, size):
     
     if address > target_address:
-        #print(" up jump")
+        print(" up jump")
         new_operand = address - target_address - size #len(instr)
         operand = negative_to_little_endian_hex(new_operand)
 
     if address < target_address:
-        #print(" down jump")
+        print(" down jump")
         new_operand = target_address - address - size #len(instr)
         operand = hex(new_operand).replace('x','0',1) # target_address affset
         operand = operand.replace('00','',1)
@@ -1026,6 +1107,10 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
 
         instr_str = str(instrcution)
         present_instr = hexdump
+        
+        prefixes = None
+        
+        prefixes, present_instr = is_prefixes(present_instr.hex().upper())
 
         if 'REL' not in address_type: # 절대주소
             value = address_pattern_short.findall(instr_str)
@@ -1054,8 +1139,8 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
                     op_code = present_instr[:6]                    
                     new_ins = op_code+operand+'80'
 
-                    if segment_prefix:
-                        new_ins = segment_prefix+op_code+operand+'80'
+                    if prefixes:
+                        new_ins = prefixes+op_code+operand+'80'
 
                     new_ins = new_ins.replace('0080','80',1)
 
@@ -1093,16 +1178,13 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
     save_dir = modify_section(file_path, new_text, save_dir, str(number_of_nop), fin = 1)
     modify_tramp(save_dir, modified_address, fin = 1)
     modify_rdata(save_dir, modified_address, fin = 1)
-        
+    
 if __name__ == '__main__':
-        
-    sample_dir = '../sample/section_move_sample/'
-    save_dir = '../sample/perturbated_sample/adding_nop/'
     
-    samples = list_files_by_size(sample_dir)
-    create_directory(save_dir)
-    
-    number_of_nop = 456
+    sample_dir = '../sample/'
+    save_dir = sample_dir+'instruction_nop/test/'
+    samples = os.listdir(sample_dir)
+    number_of_nop = 1
     
     for sample in samples:
         if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
@@ -1128,3 +1210,5 @@ if __name__ == '__main__':
             save_dir = modify_rdata(save_dir, modified_address)
             valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
             print("Done!!",sample)
+            
+#되는데 왜 1만 안되냐고~~ -> 시발 켈리브레이션쪽이 문제였음
