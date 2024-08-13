@@ -1,4 +1,3 @@
-#1빼고 다됨 여기서 고쳐야됨
 import distorm3
 import pefile
 from pe_library import *
@@ -1244,5 +1243,3 @@ if __name__ == '__main__':
             save_dir = modify_rdata(save_dir, modified_address)
             valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
             print("Done!!",sample)
-            
-#되는데 왜 1만 안되냐고~~ -> 시발 켈리브레이션쪽이 문제였음
