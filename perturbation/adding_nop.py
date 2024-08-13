@@ -278,7 +278,7 @@ def hex_to_signed_int(hex_str):
         value -= 1 << (len(hex_str) * 4)
     return value
 
-def count_instructions(first_address, second_address, section_data, bit, addr, number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long):
+def count_instructions(first_address, second_address, section_data, bit, addr, number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long, pe_data, text_section, image_base, virtual_address):
     decoder = Decoder(bit, section_data, ip=addr)
     
     instruction_count = 0
@@ -295,49 +295,43 @@ def count_instructions(first_address, second_address, section_data, bit, addr, n
             
         #else:
         if start_address <= instr.ip <= end_address:
-            #try:
-            #if hex(instr.ip) in address_dict:
             if instr.ip == end_address:
                     break
-                    #continue
-#                 if address_dict[hex(instr.ip)]: #프롤로그 에필로그 체크
-#                     if instr.ip == end_address:
-#                         break
-#                     continue
-
-#             except:
             else:
                 if ('ret' in str(instr)) or ('int 3' in str(instr)) or ('nop' in str(instr)):
                     continue
 
                 if not should_add_nop(str(instr)):
-                    if len(instr)==2:
-                        #address = re.findall(r'\b,?[0-9A-Fa-f]{8}h\b|,?\[\b[0-9A-Fa-f]{8}h\b\]', str(instr))
-                        address = address_pattern_long.findall(str(instr))
+                    if len(instr)==2 and 'REL' in code_to_string(instr.code):
+                       
+                        present_instr = pe_data[text_section.PointerToRawData + (instr.ip-(image_base+virtual_address)):text_section.PointerToRawData + ((instr.next_ip)-(image_base+virtual_address))]
+ 
+                        operand = present_instr.hex()[2:]
 
-                        if address:
-#                             print("  ",hex(instr.ip), instr)
-                            address = address[0].replace('00','',1).replace('h','')
+                        if 'ptr' in str(instr) and len(operand)>8:
+                            operand = present_instr.hex()[4:]
 
-                            anc = count_instructions_between_addresses(instr.ip, int(address,16), section_data, bit, addr, number_of_nop)
-            
-                            total_increase = calculate_instruction_length_increase(instr.ip, int(address,16), section_data, bit, addr, jump_dict, increase_address, address_pattern_long, number_of_nop)
+                        address = hex(instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))).replace('0x','',1).upper()   
 
-                            offset = int(address,16) - instr.ip - len(instr)
-                            
-                            operand = offset + anc + total_increase
-                            
-                            if 0>offset:
-                                operand = offset - anc - total_increase
-                                
-                            #print("  ",hex(instr.ip), instr, operand, offset, anc, total_increase)
-                            if operand<=(-128) or operand>=127:
-                                increace_instruction+=1
-                                op_code = str(instr).split(' ')[0]
+                        anc = count_instructions_between_addresses(instr.ip, int(address,16), section_data, bit, addr, number_of_nop)
 
-                                new_ins_len = 5 if 'jmp' in op_code else 6
-                               # print("  ",hex(instr.ip), instr, operand, offset, anc, total_increase)
-                                increase_address[instr.ip] = int(new_ins_len - len(instr))
+                        total_increase = calculate_instruction_length_increase(instr.ip, int(address,16), section_data, bit, addr, jump_dict, increase_address, address_pattern_long, number_of_nop, pe_data, text_section, image_base, virtual_address)
+
+                        offset = int(address,16) - instr.ip - len(instr)
+
+                        operand = offset + anc + total_increase
+
+                        if 0>offset:
+                            operand = offset - anc - total_increase
+
+                        #print("  ",hex(instr.ip), instr, operand, offset, anc, total_increase)
+                        if operand<=(-128) or operand>=127:
+                            increace_instruction+=1
+                            op_code = str(instr).split(' ')[0]
+
+                            new_ins_len = 5 if 'jmp' in op_code else 6
+                           # print("  ",hex(instr.ip), instr, operand, offset, anc, total_increase)
+                            increase_address[instr.ip] = int(new_ins_len - len(instr))
                     continue
 
                 if instr.ip == end_address:
@@ -401,7 +395,7 @@ def count_instructions_between_addresses(first_address, second_address, section_
     
     return instruction_count_num
 
-def calculate_instruction_length_increase(first_address, second_address, section_data, bit, addr, jump_dict, increase_address, address_pattern_long, number_of_nop):
+def calculate_instruction_length_increase(first_address, second_address, section_data, bit, addr, jump_dict, increase_address, address_pattern_long, number_of_nop, pe_data, text_section, image_base, virtual_address):
     decoder = Decoder(bit, section_data, ip=addr)
         
     total_increase = 0
@@ -420,52 +414,57 @@ def calculate_instruction_length_increase(first_address, second_address, section
             #if hex(instr.ip) in address_dict:
             if instr.ip == end_address:
                 break
-            #continue
-#                 if address_dict[hex(instr.ip)]: #프롤로그 에필로그 체크
-#                     if instr.ip == end_address:
-#                         break
-#                     continue
 
-#             except:
             else:
                 if ('ret' in str(instr)) or ('int 3' in str(instr)) or ('nop' in str(instr)):
                     continue
 
                 if not should_add_nop(str(instr)):
-                    if len(instr)==2:
-                        #address = re.findall(r'\b,?[0-9A-Fa-f]{8}h\b|,?\[\b[0-9A-Fa-f]{8}h\b\]', str(instr))
-                        address = address_pattern_long.findall(str(instr))
+#                     if len(instr)==2:
+#                         #address = re.findall(r'\b,?[0-9A-Fa-f]{8}h\b|,?\[\b[0-9A-Fa-f]{8}h\b\]', str(instr))
+#                         address = address_pattern_long.findall(str(instr))
 
-                        if address:
-                            address = address[0].replace('00','',1).replace('h','')
+#                         if address:
+#                             address = address[0].replace('00','',1).replace('h','')
 
-                            offset = int(address,16) - instr.ip - len(instr)
-                            
-                            anc = count_instructions_between_addresses(instr.ip, int(address,16), section_data, bit, addr, number_of_nop)
-                            
-                            if number_of_nop ==1:
-                                jmp_calibration = 0
-                                calibration = 0
-                            else:
-                                jmp_calibration = sum(value for i, value in increase_address.items() if instr.ip <= i <= int(address,16))
-                                calibration = sum(value for i, value in jump_dict.items() if start_address <= i <= end_address)
-                            
-                            #jump_dict에 아직 저장되지 않은 주소값인 경우 (향후 늘어나는 점프에 대해) 어떻게 대응할것인가? 아래 주석해놓은 거는 nop 5일떄는 실행이 됨, 다만 nop 이 많아질수록 부정확하기떄문에 실행이 안됨
-                            
-                            operand = offset+anc+calibration+jmp_calibration
-                            
-                            #if instr.ip == int('4298709') or instr.ip == int('4298733'):
-                                #print("     ",hex(instr.ip), instr, operand, offset, anc, calibration, jmp_calibration) # 아마 여기서 D5가 반영이 안되어서 그런걱 같은데, 이걸 어케하냐??
-                            
-                            if 0>offset:
-                                operand = offset-anc-calibration-jmp_calibration
+                    if len(instr)==2 and 'REL' in code_to_string(instr.code):
+                       
+                        present_instr = pe_data[text_section.PointerToRawData + (instr.ip-(image_base+virtual_address)):text_section.PointerToRawData + ((instr.next_ip)-(image_base+virtual_address))]
+ 
+                        operand = present_instr.hex()[2:]
 
-                            if operand<=(-128) or operand>=127:
-                                op_code = str(instr).split(' ')[0]
-                                
-                                new_ins_len = 5 if 'jmp' in op_code else 6
+                        if 'ptr' in str(instr) and len(operand)>8:
+                            operand = present_instr.hex()[4:]
 
-                                total_increase += int(new_ins_len - len(instr))
+                        address = hex(instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))).replace('0x','',1).upper()   
+
+                        offset = int(address,16) - instr.ip - len(instr)
+
+                        anc = count_instructions_between_addresses(instr.ip, int(address,16), section_data, bit, addr, number_of_nop)
+
+                        if number_of_nop ==1:
+                            jmp_calibration = 0
+                            calibration = 0
+                        else:
+                            jmp_calibration = sum(value for i, value in increase_address.items() if instr.ip <= i <= int(address,16))
+                            calibration = sum(value for i, value in jump_dict.items() if start_address <= i <= end_address)
+
+                        #jump_dict에 아직 저장되지 않은 주소값인 경우 (향후 늘어나는 점프에 대해) 어떻게 대응할것인가? 아래 주석해놓은 거는 nop 5일떄는 실행이 됨, 다만 nop 이 많아질수록 부정확하기떄문에 실행이 안됨
+
+                        operand = offset+anc+calibration+jmp_calibration
+
+                        #if instr.ip == int('4298709') or instr.ip == int('4298733'):
+                            #print("     ",hex(instr.ip), instr, operand, offset, anc, calibration, jmp_calibration) # 아마 여기서 D5가 반영이 안되어서 그런걱 같은데, 이걸 어케하냐??
+
+                        if 0>offset:
+                            operand = offset-anc-calibration-jmp_calibration
+
+                        if operand<=(-128) or operand>=127:
+                            op_code = str(instr).split(' ')[0]
+
+                            new_ins_len = 5 if 'jmp' in op_code else 6
+
+                            total_increase += int(new_ins_len - len(instr))
                     continue
 
                 if instr.ip == end_address:
@@ -596,7 +595,7 @@ def make_new_text(file_path ,number_of_nop):
 
     if text_section is None or text_section.SizeOfRawData == 0:
         print("Error: .text section not found")
-        return
+        return None, None, None, None
 
     old_rawPointer = text_section.PointerToRawData
     old_size = text_section.Misc
@@ -675,7 +674,7 @@ def make_new_text(file_path ,number_of_nop):
         present_instr = pe_data[text_section.PointerToRawData + (instr.ip-(image_base+virtual_address)):text_section.PointerToRawData + ((instr.next_ip)-(image_base+virtual_address))]
         present_address = (instr.ip+nop_cnt+increase_instr)
         
-        modified_address[instr.ip] = (present_address)
+        modified_address[instr.ip] = present_address
         
         if ('int3' in disasm) or ('ret' in disasm) or ('nop' in disasm):
             new_text += present_instr
@@ -685,7 +684,7 @@ def make_new_text(file_path ,number_of_nop):
         
         prefixes, present_instr = is_prefixes(present_instr.hex().upper())\
         
-        #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
+       # print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
         
         if 'REL' not in code_to_string(instr.code): # 절대주소
             #print("  sibale??")
@@ -697,12 +696,12 @@ def make_new_text(file_path ,number_of_nop):
             else:
                 saperator = [present_instr.hex()[i:i+2] for i in range(0, len(present_instr.hex()), 2)]
                 
-                if len(present_instr.hex()) == 14 and saperator[-1] =='80':
-                    value = address_pattern_long.findall(str(instr))
-
-                    value,hex_value = value_int_convert(value)
-
+                if 'MOV_RM32_IMM32' in code_to_string(instr.code) and saperator[-1] =='80' and len(present_instr.hex()) == 14:
+                    value = present_instr[3:6].hex()
+                    hex_value =  to_little_endian(value)
+                    value = int(hex_value,16)
                     checker_80 = 1
+                    
                 else:
                     value = 0
             
@@ -713,7 +712,7 @@ def make_new_text(file_path ,number_of_nop):
                 target_address +='00'
                 op_code = present_instr.hex().replace(target_address.lower(),'')
 
-                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, value, section_text, bit, (image_base+virtual_address),number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long)
+                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, value, section_text, bit, (image_base+virtual_address),number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long, pe_data, text_section, image_base, virtual_address)
                 i_cnt = sum(increase_address.values())
                 
                 if instr.ip < value:
@@ -783,39 +782,69 @@ def make_new_text(file_path ,number_of_nop):
             
             ori_operand = operand
             present_address = (instr.ip+nop_cnt+increase_instr) 
-            
 
             address = instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))
 
             if instr.ip < address:
+                
+#                 if 'ff' in operand:
+#                     print('ff : ',operand, type(operand))
+#                     int_operand = hex_to_signed_int(operand)
+#                     operand = negative_to_little_endian_hex(int_operand)
+#                     print("  ff_ operand 00 : ", int_operand, operand)
+                    
+#                 else:
+                #print("  start_ operand : ", operand)
                 operand = to_little_endian(operand)
+                #print("  operand -1-1 : ", operand)
                 int_operand = hex_to_signed_int(operand)
-                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, (image_base+virtual_address), number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long)
+                #print("  operand 00 : ", int_operand)
+                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, (image_base+virtual_address), number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long, pe_data, text_section, image_base, virtual_address)
     
                 i_cnt=0
                 i_cnt = sum(increase_address.values())
             
                 target_address = len(instr) + present_address + (int_operand + adding_nop_cnt + (i_cnt))
                 offset = target_address - present_address - len(instr)
-
+                #print("  target_address : ", target_address, hex(target_address))
+                #print("  offset : ", offset, type(offset))
+                
                 operand = hex(offset).replace('x','0',1) 
+                               
+                #print("  operand11 : ", operand)
                 operand = operand.replace('00','',1)
+                #print("  operand22 : ", operand)
                 
                 if len(operand)%2 !=0:
                     new_operand = '0'+operand
                     operand = new_operand
 
                 operand = to_little_endian(operand)
+                #print("  operand33 : ", operand)
                 
                 if len(operand) != 8:
-                    operand += '0' * (8-len(operand))
+                    operand += '0' * (8-len(operand))    
                     
+                if offset<0:
+                    #print("int")
+                    operand = negative_to_little_endian_hex(offset)
+                    operand = operand.replace('x','0',1)
+                    
+                    while 1:
+                        if len(ori_operand) == len(operand):
+                            break
+                        else:
+                            operand = operand.replace('ff','',1)
+                
+                new_ins = op_code+operand
+                
                 if prefixes:
                     new_ins = prefixes.hex()+op_code+operand
                 
-                new_ins = op_code+operand
-
+               # print("  new_ins 11 : ", new_ins, op_code,operand)
+                
                 if len(present_instr.hex()) != len(new_ins):
+                    #print("길이가 안맞니?")
                     if 'short' in str(instr) or 'loop' in str(instr):
                         ori_operand = present_instr.hex()[2:]
                         operand = to_little_endian(ori_operand)
@@ -873,7 +902,9 @@ def make_new_text(file_path ,number_of_nop):
                                     operand = operand.replace('0','',1)
         
                     new_ins = op_code+operand
-                              
+            
+                
+                #print("new : ",new_ins , op_code, operand)
                 mc_code =  bytes.fromhex((new_ins))
 
                 new_text += mc_code  
@@ -893,9 +924,11 @@ def make_new_text(file_path ,number_of_nop):
                 address = instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))
 
                 operand = to_little_endian(operand)
+                #print("up operand :",operand, type(operand))
                 int_operand = hex_to_signed_int(operand)
 
-                adding_nop_cnt, increace_instruction, increase_address = count_instructions(address, instr.ip, section_text, bit, (image_base+virtual_address), number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long)
+                adding_nop_cnt, increace_instruction, increase_address = count_instructions(address, instr.ip, section_text, bit, (image_base+virtual_address), number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long, pe_data, text_section, image_base, virtual_address)
+                
                 present_address = (instr.ip  + nop_cnt + increase_instr)
 
                 i_cnt = 0     
@@ -908,6 +941,7 @@ def make_new_text(file_path ,number_of_nop):
                 
                 offset = target_address - present_address - len(instr) 
                 operand = negative_to_little_endian_hex(offset)
+                
                 new_ins = op_code+operand
                 
                 if prefixes:
