@@ -9,6 +9,8 @@ import pickle
 import shutil
 import r2pipe
 from tqdm import tqdm
+from common_function import *
+from functools import lru_cache
 
 old_rawPointer = 0
 old_nextPointer = 0
@@ -211,24 +213,7 @@ def modify_rdata(save_dir, modified_address, fin = None):
     print(f"Modified PE file saved as {output_file_path}")
     
     return output_file_path
-    
 
-def find_prologue_epilogue(txt_dir):
-    addr_dict = {}
-
-    with open(txt_dir, "r") as f:
-        data = f.readlines()
-
-    for line in data:
-        if 'Prologue : ' in line or 'Epilogue : ' in line:
-            if 'Not found' in line:
-                continue
-            addr_dict[line.split(':')[1].strip()] = line.split(':')[0].strip()
-
-    #print('rm -rf ./'+txt_dir)
-    #os.system('rm -rf ./'+txt_dir)
-    
-    return addr_dict
 
 def to_little_endian(hex_str):
     # 2자리씩 끊어서 리스트로 만듭니다.
@@ -277,8 +262,20 @@ def hex_to_signed_int(hex_str):
         value -= 1 << (len(hex_str) * 4)
     return value
 
-def count_instructions(first_address, second_address, section_data, bit, addr, number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long, pe_data, text_section, image_base, virtual_address):
-    decoder = Decoder(bit, section_data, ip=addr)
+
+def dict_to_frozenset(d):
+    return frozenset(d.items())
+
+@lru_cache(maxsize=None)
+def decode_section_data(bit, section_data, addr):
+    return list(Decoder(bit, section_data, ip=addr))
+
+@lru_cache(maxsize=None)
+def count_instructions(first_address, second_address, section_data, bit, number_of_nop, jump_dict, nop_cnt, increase_instr, pe_data, text_section, image_base, virtual_address):
+    addr = image_base+virtual_address
+    #decoder = Decoder(bit, section_data, ip=addr)
+    decoder = decode_section_data(bit, section_data, addr)
+    jump_dict = dict(jump_dict)
     
     instruction_count = 0
     increace_instruction =0
@@ -295,9 +292,10 @@ def count_instructions(first_address, second_address, section_data, bit, addr, n
         #else:
         if start_address <= instr.ip <= end_address:
             if instr.ip == end_address:
-                    break
+                break
             else:
-                if ('ret' in str(instr)) or ('int 3' in str(instr)) or ('nop' in str(instr)):
+                instr_str = str(instr)
+                if any(x in instr_str for x in ('ret', 'int 3', 'nop')):
                     continue
 
                 if not should_add_nop(str(instr)):
@@ -312,9 +310,12 @@ def count_instructions(first_address, second_address, section_data, bit, addr, n
 
                         address = hex(instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))).replace('0x','',1).upper()   
 
-                        anc = count_instructions_between_addresses(instr.ip, int(address,16), section_data, bit, addr, number_of_nop)
+                        anc = count_instructions_between_addresses(instr.ip, int(address,16), section_data, bit, (image_base+virtual_address), number_of_nop)
+                        
+                       # frozen_dict = dict_to_frozenset(jump_dict)
+                        #print(type(jump_dict))
 
-                        total_increase = calculate_instruction_length_increase(instr.ip, int(address,16), section_data, bit, addr, jump_dict, increase_address, address_pattern_long, number_of_nop, pe_data, text_section, image_base, virtual_address)
+                        total_increase = calculate_instruction_length_increase(instr.ip, int(address,16), section_data, bit, dict_to_frozenset(jump_dict), dict_to_frozenset(increase_address), number_of_nop, pe_data, text_section, image_base, virtual_address)
 
                         offset = int(address,16) - instr.ip - len(instr)
 
@@ -342,13 +343,12 @@ def count_instructions(first_address, second_address, section_data, bit, addr, n
 
                 instruction_count += (1*number_of_nop)
                 
-
-           
     return instruction_count, increace_instruction, increase_address
 
-
+@lru_cache(maxsize=None)
 def count_instructions_between_addresses(first_address, second_address, section_data, bit, addr, number_of_nop):
-    decoder = Decoder(bit, section_data, ip=addr)
+    #decoder = Decoder(bit, section_data, ip=addr)
+    decoder = decode_section_data(bit, section_data, addr)
          
     instruction_count_num = 0
     jump_counter = {}
@@ -362,19 +362,12 @@ def count_instructions_between_addresses(first_address, second_address, section_
             continue
             
         if start_address <= instr.ip <= end_address:
-            #try:
-            #if hex(instr.ip) in address_dict:
             if instr.ip == end_address:
                 break
-#                 continue
-#                 if address_dict[hex(instr.ip)]: #프롤로그 에필로그 체크
-#                     if instr.ip == end_address:
-#                         break
-#                     continue
 
-#             except:
             else:
-                if ('ret' in str(instr)) or ('int 3' in str(instr)) or ('nop' in str(instr)):
+                instr_str = str(instr)
+                if any(x in instr_str for x in ('ret', 'int 3', 'nop')):
                     continue
 
                 if not should_add_nop(str(instr)):
@@ -390,13 +383,16 @@ def count_instructions_between_addresses(first_address, second_address, section_
                     continue
 
                 instruction_count_num += (1*number_of_nop)
-                continue
     
     return instruction_count_num
 
-def calculate_instruction_length_increase(first_address, second_address, section_data, bit, addr, jump_dict, increase_address, address_pattern_long, number_of_nop, pe_data, text_section, image_base, virtual_address):
-    decoder = Decoder(bit, section_data, ip=addr)
-        
+@lru_cache(maxsize=None)
+def calculate_instruction_length_increase(first_address, second_address, section_data, bit, jump_dict, increase_address, number_of_nop, pe_data, text_section, image_base, virtual_address):
+    addr = image_base+virtual_address
+    #decoder = Decoder(bit, section_data, ip=addr)
+    decoder = decode_section_data(bit, section_data, addr)
+    jump_dict = dict(jump_dict)
+    increase_address = dict(increase_address)
     total_increase = 0
     
     start_address = min(first_address, second_address)
@@ -407,24 +403,17 @@ def calculate_instruction_length_increase(first_address, second_address, section
         if (instr.ip < start_address):
             continue
             
-        #else:
         if start_address <= instr.ip <= end_address:
-#             try:
-            #if hex(instr.ip) in address_dict:
             if instr.ip == end_address:
                 break
 
             else:
-                if ('ret' in str(instr)) or ('int 3' in str(instr)) or ('nop' in str(instr)):
+                instr_str = str(instr)
+                if any(x in instr_str for x in ('ret', 'int 3', 'nop')):
                     continue
 
                 if not should_add_nop(str(instr)):
-#                     if len(instr)==2:
-#                         #address = re.findall(r'\b,?[0-9A-Fa-f]{8}h\b|,?\[\b[0-9A-Fa-f]{8}h\b\]', str(instr))
-#                         address = address_pattern_long.findall(str(instr))
 
-#                         if address:
-#                             address = address[0].replace('00','',1).replace('h','')
 
                     if len(instr)==2 and 'REL' in code_to_string(instr.code):
                        
@@ -448,12 +437,7 @@ def calculate_instruction_length_increase(first_address, second_address, section
                             jmp_calibration = sum(value for i, value in increase_address.items() if instr.ip <= i <= int(address,16))
                             calibration = sum(value for i, value in jump_dict.items() if start_address <= i <= end_address)
 
-                        #jump_dict에 아직 저장되지 않은 주소값인 경우 (향후 늘어나는 점프에 대해) 어떻게 대응할것인가? 아래 주석해놓은 거는 nop 5일떄는 실행이 됨, 다만 nop 이 많아질수록 부정확하기떄문에 실행이 안됨
-
                         operand = offset+anc+calibration+jmp_calibration
-
-                        #if instr.ip == int('4298709') or instr.ip == int('4298733'):
-                            #print("     ",hex(instr.ip), instr, operand, offset, anc, calibration, jmp_calibration) # 아마 여기서 D5가 반영이 안되어서 그런걱 같은데, 이걸 어케하냐??
 
                         if 0>offset:
                             operand = offset-anc-calibration-jmp_calibration
@@ -473,7 +457,6 @@ def calculate_instruction_length_increase(first_address, second_address, section
                     continue
                    
     return total_increase
-
 
 def assemble_asm(asm_code, arch, mode, big_endian=False):
     # 아키텍처와 모드에 맞게 Keystone 인스턴스 생성
@@ -605,18 +588,14 @@ def make_new_text(file_path ,number_of_nop):
     #bitness = 64 if pe.FILE_HEADER.Machine == 0x8664 else 32
     
     if pe.FILE_HEADER.Machine == 0x8664:
-        #bitness = 64
-        decoder = Decoder(64, section_text, ip=image_base+virtual_address)
+        decoder = Decoder(64, section_text, ip = image_base+virtual_address)
         bit = 64
         address_pattern_short = re.compile(r'\b,?[0-9A-Fa-f]{12}h\b|,?\[\b[0-9A-Fa-f]{12}h\b\]')
-        address_pattern_long = re.compile(r'\b,?[0-9A-Fa-f]{16}h\b|,?\[\b[0-9A-Fa-f]{16}h\b\]')
         
     else:
-        #bitness = 32
-        decoder = Decoder(32, section_text, ip=image_base+virtual_address)
+        decoder = Decoder(32, section_text, ip = image_base+virtual_address)
         bit = 32
         address_pattern_short = re.compile(r'\b,?[0-9A-Fa-f]{6}h\b|,?\[\b[0-9A-Fa-f]{6}h\b\]')
-        address_pattern_long = re.compile(r'\b,?[0-9A-Fa-f]{8}h\b|,?\[\b[0-9A-Fa-f]{8}h\b\]')
     
     print(bit)
         
@@ -659,7 +638,6 @@ def make_new_text(file_path ,number_of_nop):
     checking_target_address={}
     modified_address={}
     
-    #for instr in decoder:
     for instr in tqdm(decoder):
         time.sleep(0.0001)
         
@@ -675,18 +653,25 @@ def make_new_text(file_path ,number_of_nop):
         
         modified_address[instr.ip] = present_address
         
-        if ('int3' in disasm) or ('ret' in disasm) or ('nop' in disasm):
+        if any(x in disasm for x in ('ret', 'int 3', 'nop')):
             new_text += present_instr
             continue
+        
+        op = disasm.split(' ')[0]
+        
+        if ('push' in op) or ('pop' in op) or ('test' in op) or ('xor' in op):
+            new_text += present_instr
+            new_text += (b'\x90'*number_of_nop)
+            nop_cnt+=(1*number_of_nop) 
+            continue 
             
         prefixes = None
         
-        prefixes, present_instr = is_prefixes(present_instr.hex().upper())\
+        prefixes, present_instr = is_prefixes(present_instr.hex().upper())
         
-       # print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
+        #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
         
         if 'REL' not in code_to_string(instr.code): # 절대주소
-            #print("  sibale??")
             value = address_pattern_short.findall(str(instr))
             
             if value:
@@ -705,13 +690,14 @@ def make_new_text(file_path ,number_of_nop):
                     value = 0
             
             if text_start <= value <= text_end:
-                #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr)
                 caller_callee_dict[instr.ip] = value
                 target_address = to_little_endian(hex_value)
                 target_address +='00'
                 op_code = present_instr.hex().replace(target_address.lower(),'')
 
-                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, value, section_text, bit, (image_base+virtual_address),number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long, pe_data, text_section, image_base, virtual_address)
+                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, value, section_text, bit, number_of_nop, dict_to_frozenset(jump_dict), nop_cnt, increase_instr, pe_data, text_section, image_base, virtual_address) 
+                #adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, value, section_text, bit, image_base,virtual_address,number_of_nop, jump_dict, nop_cnt, increase_instr, pe_data, text_section)
+                
                 i_cnt = sum(increase_address.values())
                 
                 if instr.ip < value:
@@ -723,7 +709,6 @@ def make_new_text(file_path ,number_of_nop):
                     
                     target_address = value + (nop_cnt - adding_nop_cnt - (i_cnt)) + increase_instr
                     
-                #print("target_address : ",target_address, hex(target_address))
                 operand = hex(target_address).replace('x','0',1) # target_address affset
                 
                 if len(operand)>8:
@@ -734,7 +719,6 @@ def make_new_text(file_path ,number_of_nop):
                     operand = '0'+operand
                     
                 operand = to_little_endian(operand)
-                #print("operand : ",operand)
                 
                 if checker_80 ==1:
                     op_code = present_instr.hex()[:6]
@@ -743,8 +727,7 @@ def make_new_text(file_path ,number_of_nop):
                     
                 else: 
                     new_ins = op_code+operand
-                
-                #print("  new_ins : ",new_ins,'\n')
+
                 mc_code =  bytes.fromhex((new_ins))
                 new_text+= mc_code
 
@@ -754,8 +737,6 @@ def make_new_text(file_path ,number_of_nop):
                     new_text += (b'\x90'*number_of_nop)
                     nop_cnt+=(1*number_of_nop)
                     continue
-                else:
-                    continue
                     
             else:                
                 if prefixes:
@@ -763,12 +744,11 @@ def make_new_text(file_path ,number_of_nop):
                     present_instr = ins
                 
                 new_text += present_instr
+                
                 if should_add_nop(str(instr)):
                     new_text += (b'\x90'*number_of_nop)
                     nop_cnt+=(1*number_of_nop) 
                     continue           
-                else:
-                    continue
 
         if 'REL' in code_to_string(instr.code):
                         
@@ -785,47 +765,33 @@ def make_new_text(file_path ,number_of_nop):
             address = instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))
 
             if instr.ip < address:
-                
-#                 if 'ff' in operand:
-#                     print('ff : ',operand, type(operand))
-#                     int_operand = hex_to_signed_int(operand)
-#                     operand = negative_to_little_endian_hex(int_operand)
-#                     print("  ff_ operand 00 : ", int_operand, operand)
-                    
-#                 else:
-                #print("  start_ operand : ", operand)
+
                 operand = to_little_endian(operand)
-                #print("  operand -1-1 : ", operand)
                 int_operand = hex_to_signed_int(operand)
-                #print("  operand 00 : ", int_operand)
-                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, (image_base+virtual_address), number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long, pe_data, text_section, image_base, virtual_address)
+                
+                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, number_of_nop, dict_to_frozenset(jump_dict), nop_cnt, increase_instr, pe_data, text_section, image_base, virtual_address) 
+                #adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, image_base,virtual_address,number_of_nop, jump_dict, nop_cnt, increase_instr, pe_data, text_section)
     
                 i_cnt=0
                 i_cnt = sum(increase_address.values())
             
                 target_address = len(instr) + present_address + (int_operand + adding_nop_cnt + (i_cnt))
                 offset = target_address - present_address - len(instr)
-                #print("  target_address : ", target_address, hex(target_address))
-                #print("  offset : ", offset, type(offset))
                 
-                operand = hex(offset).replace('x','0',1) 
-                               
-                #print("  operand11 : ", operand)
+                operand = hex(offset).replace('x','0',1)                                
                 operand = operand.replace('00','',1)
-                #print("  operand22 : ", operand)
+
                 
                 if len(operand)%2 !=0:
                     new_operand = '0'+operand
                     operand = new_operand
 
                 operand = to_little_endian(operand)
-                #print("  operand33 : ", operand)
-                
+
                 if len(operand) != 8:
                     operand += '0' * (8-len(operand))    
                     
                 if offset<0:
-                    #print("int")
                     operand = negative_to_little_endian_hex(offset)
                     operand = operand.replace('x','0',1)
                     
@@ -839,11 +805,8 @@ def make_new_text(file_path ,number_of_nop):
                 
                 if prefixes:
                     new_ins = prefixes.hex()+op_code+operand
-                
-               # print("  new_ins 11 : ", new_ins, op_code,operand)
-                
+                                
                 if len(present_instr.hex()) != len(new_ins):
-                    #print("길이가 안맞니?")
                     if 'short' in str(instr) or 'loop' in str(instr):
                         ori_operand = present_instr.hex()[2:]
                         operand = to_little_endian(ori_operand)
@@ -902,8 +865,8 @@ def make_new_text(file_path ,number_of_nop):
         
                     new_ins = op_code+operand
             
-                
-                #print("new : ",new_ins , op_code, operand)
+                #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
+                #print("  new_ins : ",new_ins,"\n")
                 mc_code =  bytes.fromhex((new_ins))
 
                 new_text += mc_code  
@@ -914,8 +877,7 @@ def make_new_text(file_path ,number_of_nop):
                     new_text += (b'\x90'*number_of_nop)
                     nop_cnt+=(1*number_of_nop)
                     continue
-                else:
-                    continue
+
 
             elif instr.ip > address:
                 #print("    위로 뛸꺼고")
@@ -923,10 +885,10 @@ def make_new_text(file_path ,number_of_nop):
                 address = instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))
 
                 operand = to_little_endian(operand)
-                #print("up operand :",operand, type(operand))
                 int_operand = hex_to_signed_int(operand)
 
-                adding_nop_cnt, increace_instruction, increase_address = count_instructions(address, instr.ip, section_text, bit, (image_base+virtual_address), number_of_nop, jump_dict, nop_cnt, increase_instr, address_pattern_long, pe_data, text_section, image_base, virtual_address)
+                adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, number_of_nop, dict_to_frozenset(jump_dict), nop_cnt, increase_instr, pe_data, text_section, image_base, virtual_address) 
+                #adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, image_base,virtual_address,number_of_nop, jump_dict, nop_cnt, increase_instr, pe_data, text_section)
                 
                 present_address = (instr.ip  + nop_cnt + increase_instr)
 
@@ -985,7 +947,8 @@ def make_new_text(file_path ,number_of_nop):
                             jump_dict[instr.ip] = new_ins_len - len(instr)
                             
                         new_ins = op_code+operand   
-
+                #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
+               # print("  new_ins : ",new_ins,"\n")
                 mc_code =  bytes.fromhex((new_ins))
                 new_text += mc_code
                 checking_target_address[present_address] = target_address
@@ -995,12 +958,6 @@ def make_new_text(file_path ,number_of_nop):
                     new_text += (b'\x90'*number_of_nop)
                     nop_cnt+=(1*number_of_nop)
                     continue
-                    
-                else:
-                    continue    
-        else:
-            print("나머지?? : ",instr.ip, instr)
-            continue
 
     return new_text, modified_address , caller_callee_dict, checking_target_address
 
@@ -1213,30 +1170,34 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
     modify_rdata(save_dir, modified_address, fin = 1)
     
 if __name__ == '__main__':
+        
+    sample_dir = '../sample/section_move_sample/'
+    save_dir = '../sample/perturbated_sample/adding_nop/'
     
-    sample_dir = '../sample/'
-    save_dir = sample_dir+'instruction_nop/test/'
-    samples = os.listdir(sample_dir)
-    number_of_nop = 1
+    samples = list_files_by_size(sample_dir)
+    create_directory(save_dir)
     
+    number_of_nop = 562
     for sample in samples:
+        save_dir = '../sample/perturbated_sample/adding_nop/'
         if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
             continue
 
         if 'PEview_new.exe' not in sample:
+#         if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample:
 #         if 'hello_32_new.exe' not in sample:
             continue
-        
+
         file_path = sample_dir+sample
 
         print(file_path)
                  
         new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
-        print("len_new_text: ",len(new_text))
 
         if new_text is None:
             print(f"[+] Error : failed to make new_text section.") 
         else:
+            print("len_new_text: ",len(new_text))
             new_text = modify_headers(file_path, new_text)
             save_dir = modify_section(file_path, new_text, save_dir,number_of_nop)
             modify_tramp(save_dir, modified_address)
