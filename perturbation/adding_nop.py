@@ -102,7 +102,8 @@ def modify_section(file_path, new_text, save_dir, number_of_nop, fin = None):
         print("modified_section_return save_dir : ",save_dir+file_name)
         return save_dir+file_name
 
-def modify_tramp(save_dir,modified_address, fin = None):
+def modify_tramp(save_dir, modified_address, fin = None):
+
     file_path = save_dir
     pe = pefile.PE(file_path)
     pe_data = open(file_path, "rb").read()
@@ -110,58 +111,65 @@ def modify_tramp(save_dir,modified_address, fin = None):
     # .tramp 섹션 찾기
     section = next(section for section in pe.sections if section.Name.rstrip(b'\x00') == b'.Tram')
 
-    virtual_address = section.VirtualAddress
     image_base = pe.OPTIONAL_HEADER.ImageBase
-    
-    section_start = section.PointerToRawData
-    section_size = section.SizeOfRawData
-    
-    data = bytearray(pe.get_memory_mapped_image()[section_start:section_start + section_size])
 
-    old_value = None
-    new_value = None
+    text_start = section.VirtualAddress + image_base
+    text_end = text_start + section.Misc_VirtualSize
 
-    for i in range(0, len(data)):
-        if '0x90' not in str(hex(data[i])):
+    binary_data = section.get_data()
+    ori_binary_data = binary_data
 
-            old_value = data[i:i+5]
-            index = data.find(data[i:i+5])
-            instruction =  data[i:i+5].hex()
-            
-            present_address = hex(image_base+virtual_address+i)
-            instruction_len = int(len(data[i:i+5].hex())/2)
-            
+    if pe.FILE_HEADER.Machine == 0x8664:
+        bitness = 64
+
+    else:
+        bitness = 32
+
+    decoded_instructions = decode_instructions(binary_data, text_start, bitness)
+ 
+    array_offset = 0
+
+    for (offset, size, instruction, hexdump) in decoded_instructions:
+        if '90' not in hexdump:
+            print(offset, hex(offset), size, instruction, hexdump)
+
+            present_address = hex(offset)
+            array_offset = offset
+            instruction_len = size
+            instruction = hexdump
+
             offset = to_little_endian(instruction[2:])
             int_operand = hex_to_signed_int(offset)
 
             target_address = instruction_len + int(present_address,16) + int_operand
             new_address = modified_address[target_address]
-            
+
             new_offset = new_address - instruction_len - int(present_address,16)
-            
+
             operand = hex(new_offset).replace('x','0',1)
-            
+
             if len(operand)%2 !=0:
                 new_operand = '0'+operand
                 operand = new_operand
-            
+
             operand = to_little_endian(operand)
             operand += '0' * (8-len(operand))
-            
+
             if fin:
                 print("Trampoline Address : ",hex(target_address),"-->",hex(new_address))
                 print(".Tramp operand : ",operand,len(operand))
-                
+
             new_value =  bytes.fromhex(('e9'+operand))
 
             break
 
+    print(new_value)
+
     # 변경된 데이터를 PE 파일에 반영
-    pe.set_bytes_at_offset(section_start + index, new_value)
+    pe.set_bytes_at_offset(array_offset, new_value)
 
     output_file_path = file_path 
     pe.write(output_file_path)
-    #print(f"Modified PE file saved as {output_file_path}")
     
 def modify_rdata(save_dir, modified_address, fin = None):
     # PE 파일 로드
@@ -214,7 +222,7 @@ def modify_rdata(save_dir, modified_address, fin = None):
     
     return output_file_path
 
-
+@lru_cache(maxsize=None)
 def to_little_endian(hex_str):
     # 2자리씩 끊어서 리스트로 만듭니다.
     bytes_list = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
@@ -224,12 +232,12 @@ def to_little_endian(hex_str):
     little_endian_str = ''.join(bytes_list)
     return little_endian_str
     
-    
+@lru_cache(maxsize=None)   
 def should_add_nop(instruction):
     control_flow_instructions = [
         # 분기 명령어
-        'jmp', 'jz', 'je', 'jnz', 'jne', 'ja', 'jnbe', 'jb', 'jnae', 'jc', 'jae', 'jnb', 'jnc',
-        'jbe', 'jna', 'jg', 'jnle', 'jl', 'jnge', 'jge', 'jnl', 'jle', 'jng', 'jo', 'jno', 'js', 'jns',
+        'jz', 'je', 'jnz', 'jne', 'js', 'jns', 'jo', 'jno', 'jc', 'jnc', 'jp', 'jpe', 'jnp', 'jpo', 'ja', 'jnbe', 'jae', 'jnb', 'jb', 
+        'jnae', 'jbe', 'jna', 'jg', 'jnle', 'jge', 'jnl', 'jl', 'jnge', 'jle', 'jng', 'jcxz', 'jecxz', 'jrcxz', 'jmp',
         # 호출 및 리턴 명령어
         'call', 'ret', 'retf', 'iret', 'iretd', 'iretq',
         # 인터럽트 명령어
@@ -241,6 +249,7 @@ def should_add_nop(instruction):
     opcode = instruction.split()[0].lower()
     return opcode not in control_flow_instructions
 
+@lru_cache(maxsize=None)
 def negative_to_little_endian_hex(negative_integer):
     # 음수를 32비트 2의 보수 16진수로 변환
     hex_string = hex(negative_integer & 0xFFFFFFFF)[2:]
@@ -256,6 +265,7 @@ def negative_to_little_endian_hex(negative_integer):
 
     return little_endian_hex
 
+@lru_cache(maxsize=None)
 def hex_to_signed_int(hex_str):
     value = int(hex_str, 16)
     if value & (1 << (len(hex_str) * 4 - 1)):
@@ -311,9 +321,6 @@ def count_instructions(first_address, second_address, section_data, bit, number_
                         address = hex(instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))).replace('0x','',1).upper()   
 
                         anc = count_instructions_between_addresses(instr.ip, int(address,16), section_data, bit, (image_base+virtual_address), number_of_nop)
-                        
-                       # frozen_dict = dict_to_frozenset(jump_dict)
-                        #print(type(jump_dict))
 
                         total_increase = calculate_instruction_length_increase(instr.ip, int(address,16), section_data, bit, dict_to_frozenset(jump_dict), dict_to_frozenset(increase_address), number_of_nop, pe_data, text_section, image_base, virtual_address)
 
@@ -510,6 +517,7 @@ def calc_offset(target_address, instr, ori_operand, op_code):
 
     return new_ins, op_code, operand 
 
+@lru_cache(maxsize=None)
 def hex_string_to_bytes(hex_string):
     # 입력 문자열에서 공백 제거 및 소문자 처리
     hex_string = hex_string.strip().upper()
@@ -520,7 +528,7 @@ def hex_string_to_bytes(hex_string):
     # 바이트 문자열을 반환
     return bytes_result
 
-
+@lru_cache(maxsize=None)
 def is_prefixes(hex_string):
     # 프리픽스 집합 정의
     prefixes = {
@@ -536,7 +544,7 @@ def is_prefixes(hex_string):
     
     # 결과를 저장할 문자열
     result = hex_string
-    removed_prefixes = []
+    removed_prefixes = []  
     
     # 프리픽스를 제거할 때 사용할 변수
     while len(result) > 2:
@@ -557,6 +565,36 @@ def is_prefixes(hex_string):
     
     # 결과 반환: 지워진 프리픽스와 프리픽스가 지워진 문자열
     return hex_string_to_bytes(removed_prefixes_str), hex_string_to_bytes(result)
+
+@lru_cache(maxsize=None)
+def make_new_increase_instruction_operand(int_operand):
+    parm_operand = hex(int_operand).replace('0x','',1)
+
+    if len(parm_operand)%2 !=0:
+        new_parm_operand = '0'+ parm_operand
+        parm_operand = new_parm_operand
+
+    new_operand = to_little_endian(parm_operand)
+
+    operand = new_operand + '0' * (8-len(new_operand))
+    
+    return operand
+
+                    
+def minus_offset(offset, ori_operand):
+   # print("  offset 1 : ",offset)
+    operand = negative_to_little_endian_hex(offset)
+    #print("  offset 2 : ",operand)
+    operand = operand.replace('x','0',1)
+   # print("  offset 3 : ",operand)
+
+    while 1:
+        if len(ori_operand) == len(operand):
+            break
+        else:
+            operand = operand.replace('ff','',1)
+   # print("  offset 4 : ",operand)
+    return operand
 
 def make_new_text(file_path ,number_of_nop):
     
@@ -627,7 +665,8 @@ def make_new_text(file_path ,number_of_nop):
     'EB': 'E9',    # JMP -> JMP
     'E2': '0F85',  # loop
     'E0': '0F8A',  #loopne    
-    'E1': '0F82'  #loope   
+    'E1': '0F82',  #loope   
+    'E3': 'E9'  #loope 
     }
     
     nop_cnt = 0
@@ -665,11 +704,9 @@ def make_new_text(file_path ,number_of_nop):
             nop_cnt+=(1*number_of_nop) 
             continue 
             
-        prefixes = None
-        
-        prefixes, present_instr = is_prefixes(present_instr.hex().upper())
-        
-        #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
+        prefixes = ''
+        ori_present_instr = present_instr
+        prefixes, present_instr = is_prefixes(present_instr.hex())
         
         if 'REL' not in code_to_string(instr.code): # 절대주소
             value = address_pattern_short.findall(str(instr))
@@ -696,7 +733,6 @@ def make_new_text(file_path ,number_of_nop):
                 op_code = present_instr.hex().replace(target_address.lower(),'')
 
                 adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, value, section_text, bit, number_of_nop, dict_to_frozenset(jump_dict), nop_cnt, increase_instr, pe_data, text_section, image_base, virtual_address) 
-                #adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, value, section_text, bit, image_base,virtual_address,number_of_nop, jump_dict, nop_cnt, increase_instr, pe_data, text_section)
                 
                 i_cnt = sum(increase_address.values())
                 
@@ -713,7 +749,6 @@ def make_new_text(file_path ,number_of_nop):
                 
                 if len(operand)>8:
                     operand = operand[1:]
-                    #print("operand : ",operand, len(operand))
                     
                 if len(operand)<8:
                     operand = '0'+operand
@@ -765,12 +800,10 @@ def make_new_text(file_path ,number_of_nop):
             address = instr.ip+len(instr)+hex_to_signed_int(to_little_endian(operand))
 
             if instr.ip < address:
-
                 operand = to_little_endian(operand)
                 int_operand = hex_to_signed_int(operand)
                 
                 adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, number_of_nop, dict_to_frozenset(jump_dict), nop_cnt, increase_instr, pe_data, text_section, image_base, virtual_address) 
-                #adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, image_base,virtual_address,number_of_nop, jump_dict, nop_cnt, increase_instr, pe_data, text_section)
     
                 i_cnt=0
                 i_cnt = sum(increase_address.values())
@@ -778,36 +811,29 @@ def make_new_text(file_path ,number_of_nop):
                 target_address = len(instr) + present_address + (int_operand + adding_nop_cnt + (i_cnt))
                 offset = target_address - present_address - len(instr)
                 
-                operand = hex(offset).replace('x','0',1)                                
+                operand = hex(offset).replace('x','0',1)       
                 operand = operand.replace('00','',1)
-
                 
                 if len(operand)%2 !=0:
                     new_operand = '0'+operand
                     operand = new_operand
-
+                    
                 operand = to_little_endian(operand)
 
                 if len(operand) != 8:
-                    operand += '0' * (8-len(operand))    
+                    operand += '0' * (8-len(operand))
                     
                 if offset<0:
-                    operand = negative_to_little_endian_hex(offset)
-                    operand = operand.replace('x','0',1)
-                    
-                    while 1:
-                        if len(ori_operand) == len(operand):
-                            break
-                        else:
-                            operand = operand.replace('ff','',1)
-                
+                    operand = minus_offset(offset, ori_operand)
+                             
                 new_ins = op_code+operand
                 
                 if prefixes:
                     new_ins = prefixes.hex()+op_code+operand
+
                                 
                 if len(present_instr.hex()) != len(new_ins):
-                    if 'short' in str(instr) or 'loop' in str(instr):
+                    if ('short' in str(instr)) or ('loop' in str(instr)) or ('jecxz' in str(instr)):
                         ori_operand = present_instr.hex()[2:]
                         operand = to_little_endian(ori_operand)
                         int_operand = hex_to_signed_int(operand)
@@ -841,32 +867,32 @@ def make_new_text(file_path ,number_of_nop):
                                 op_code = preprocessing_code+op_code
                                 new_ins_len = 10
                                 
+                            if 'E3' in op_code:
+                                new_ins_len = 2+6+5
+                                preprocessing_code = '85C9' # dec cex
+                                jnz_inst = '0F85'+ make_new_increase_instruction_operand(target_address - present_address - new_ins_len-1)
+                                op_code = preprocessing_code+jnz_inst+op_code
+                                
                             int_operand = target_address - present_address - new_ins_len
 
-                            parm_operand = hex(int_operand).replace('0x','',1)
-                            
-                            if len(parm_operand)%2 !=0:
-                                new_parm_operand = '0'+ parm_operand
-                                parm_operand = new_parm_operand
-  
-                            new_operand = to_little_endian(parm_operand)
-
-                            operand = new_operand + '0' * (8-len(new_operand))
+                            operand = make_new_increase_instruction_operand(int_operand)
 
                             increase_instr += new_ins_len - len(instr)
                             jump_dict[instr.ip] = int(new_ins_len - len(instr))
                             
-                        else:                            
-                            while 1:
-                                if len(ori_operand) == len(operand):
-                                    break
-                                else:
-                                    operand = operand.replace('0','',1)
+                        else: 
+                            if offset<0:
+                                operand = minus_offset(offset,ori_operand)
+                                
+                            else:
+                                while 1:
+                                    if len(ori_operand) == len(operand):
+                                        break
+                                    else:
+                                        operand = operand.replace('0','',1)
         
                     new_ins = op_code+operand
-            
-                #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
-                #print("  new_ins : ",new_ins,"\n")
+
                 mc_code =  bytes.fromhex((new_ins))
 
                 new_text += mc_code  
@@ -888,7 +914,6 @@ def make_new_text(file_path ,number_of_nop):
                 int_operand = hex_to_signed_int(operand)
 
                 adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, number_of_nop, dict_to_frozenset(jump_dict), nop_cnt, increase_instr, pe_data, text_section, image_base, virtual_address) 
-                #adding_nop_cnt, increace_instruction, increase_address = count_instructions(instr.ip, address, section_text, bit, image_base,virtual_address,number_of_nop, jump_dict, nop_cnt, increase_instr, pe_data, text_section)
                 
                 present_address = (instr.ip  + nop_cnt + increase_instr)
 
@@ -913,7 +938,7 @@ def make_new_text(file_path ,number_of_nop):
                         operand = operand.replace('ff','',)
                         new_ins = op_code+operand
                         
-                    if 'short' in str(instr) or 'loop' in str(instr):    
+                    if ('short' in str(instr)) or ('loop' in str(instr)) or ('jecxz' in str(instr)):
                         i_cnt = 0                               
                         i_cnt = sum(increase_address[i] for i in list(increase_address.keys()) if address <= i < instr.ip)
                         
@@ -937,7 +962,15 @@ def make_new_text(file_path ,number_of_nop):
                                 preprocessing_code = '4883C9FF' # dec ecx
                                 op_code = preprocessing_code+op_code
                                 new_ins_len = 10
-
+                                
+                            if 'E3' in op_code:
+                                new_ins_len = 2+6+5
+                                preprocessing_code = '85C9' # dec cex
+                                jnz_operand = negative_to_little_endian_hex(target_address - present_address - new_ins_len -1)
+                                jnz_operand = jnz_operand + '0' * (8-len(jnz_operand))
+                                jnz_inst = '0F85'+ jnz_operand
+                                op_code = preprocessing_code+jnz_inst+op_code
+                                
                             int_operand = target_address - present_address - new_ins_len
                             new_operand = negative_to_little_endian_hex(int_operand)
                         
@@ -947,8 +980,7 @@ def make_new_text(file_path ,number_of_nop):
                             jump_dict[instr.ip] = new_ins_len - len(instr)
                             
                         new_ins = op_code+operand   
-                #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
-               # print("  new_ins : ",new_ins,"\n")
+
                 mc_code =  bytes.fromhex((new_ins))
                 new_text += mc_code
                 checking_target_address[present_address] = target_address
@@ -1049,7 +1081,7 @@ def decode_instructions(binary_data, start_address, bitness):
 def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, number_of_nop):
 
     modifying_address = unmatched_address_chacker(modified_address, caller_callee_dict, checking_target_address)
-    print(modifying_address)
+    print(modifying_address, len(modifying_address))
     
     if not modifying_address:
         return
@@ -1177,14 +1209,14 @@ if __name__ == '__main__':
     samples = list_files_by_size(sample_dir)
     create_directory(save_dir)
     
-    number_of_nop = 562
+    number_of_nop = 1
     for sample in samples:
         save_dir = '../sample/perturbated_sample/adding_nop/'
         if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
             continue
 
-        if 'PEview_new.exe' not in sample:
-#         if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample:
+#         if 'PEview_new.exe' not in sample:
+        if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample:
 #         if 'hello_32_new.exe' not in sample:
             continue
 
@@ -1196,11 +1228,13 @@ if __name__ == '__main__':
 
         if new_text is None:
             print(f"[+] Error : failed to make new_text section.") 
+            
         else:
             print("len_new_text: ",len(new_text))
             new_text = modify_headers(file_path, new_text)
             save_dir = modify_section(file_path, new_text, save_dir,number_of_nop)
+            print(len(modified_address))
             modify_tramp(save_dir, modified_address)
             save_dir = modify_rdata(save_dir, modified_address)
-            valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+            #valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
             print("Done!!",sample)

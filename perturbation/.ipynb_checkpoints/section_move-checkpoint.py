@@ -6,14 +6,301 @@ import capstone
 import random
 import string
 
+from functools import lru_cache
 from math import ceil
 from enum import IntEnum
 from add_section import *
 
+from dataclasses import dataclass, field
+from typing import Dict, List, Union
 
+@dataclass
+class ImportTableEntry:
+    OriginalFirstThunk: int # Import Name Table's RVA
+    TimeDateStamp: int      # TimeStamp
+    ForwarderChain: int     # Forwarderchain index
+    Name: int               # DLL Name's RVA
+    FirstThunk: int         # Import Address Table's RVA
+
+@dataclass
+class ImportAddressTableEntry:
+    offset: int
+    entry_data: bytes
+
+@dataclass
+class ImportNameTableEntry:
+    offset: int
+    entry_data: bytes
+
+@dataclass
+class ParsedImportTables:
+    import_table: Dict[str, ImportTableEntry] = field(default_factory=dict)
+    import_address_table: Dict[int, ImportAddressTableEntry] = field(default_factory=dict)
+    import_name_table: Dict[str, ImportNameTableEntry] = field(default_factory=dict)
+
+bound_import_rva = 0
+bound_import_size = 0
+bound_import_data = 0
+
+@lru_cache(maxsize=None)
+def is_in_executable_section(pe, rva):
+    for section in pe.sections:
+        if (section.VirtualAddress <= rva < section.VirtualAddress + section.Misc_VirtualSize) and (section.Characteristics & 0x20000000):
+            return True
+    return False
+
+@lru_cache(maxsize=None)
+def check_import_tables_in_executable_section(pe) -> Union[bool, ParsedImportTables]:
+    all_in_executable = True
+    parsed_tables = ParsedImportTables()
+
+    # Check the IMPORT TABLE RVA and IAT RVA
+    import_table_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']].VirtualAddress
+    import_address_table_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']].VirtualAddress
+
+    if not is_in_executable_section(pe, import_table_rva):
+        # print(f"IMPORT TABLE at RVA {hex(import_table_rva)} is NOT in an executable section.")
+        all_in_executable = False
+    else:
+        # print(f"IMPORT TABLE at RVA {hex(import_table_rva)} is in an executable section.")
+
+    if not is_in_executable_section(pe, import_address_table_rva):
+        # print(f"IAT at RVA {hex(import_address_table_rva)} is NOT in an executable section.")
+        all_in_executable = False
+    else:
+        print(f"IAT at RVA {hex(import_address_table_rva)} is in an executable section.")
+
+    # Parse the IMPORT TABLE (IDT)
+    import_table_offset = pe.get_offset_from_rva(import_table_rva)
+    while True:
+        descriptor_data = pe.get_data(import_table_offset, 20)
+        if all(b == 0 for b in descriptor_data):
+            break
+
+        descriptor = pefile.Structure(pe.__IMAGE_IMPORT_DESCRIPTOR_format__, file_offset=import_table_offset)
+        descriptor.__unpack__(descriptor_data)
+
+        dll_name_rva = descriptor.Name
+        dll_name_offset = pe.get_offset_from_rva(dll_name_rva)
+        dll_name = pe.get_string_at_rva(dll_name_rva)
+
+        # Store the ImportTableEntry
+        parsed_tables.import_table[dll_name] = ImportTableEntry(
+            OriginalFirstThunk=descriptor.OriginalFirstThunk,
+            TimeDateStamp=descriptor.TimeDateStamp,
+            ForwarderChain=descriptor.ForwarderChain,
+            Name=descriptor.Name,
+            FirstThunk=descriptor.FirstThunk
+        )
+
+        # Parse the INT (Original First Thunk)
+        if descriptor.OriginalFirstThunk:
+            original_first_thunk_offset = pe.get_offset_from_rva(descriptor.OriginalFirstThunk)
+            int_entries = []
+            while True:
+                int_entry = int.from_bytes(pe.get_data(original_first_thunk_offset, 4), byteorder='little')
+                if int_entry == 0:
+                    break
+                
+                parsed_tables.import_name_table[original_first_thunk_offset] = ImportNameTableEntry(
+                    offset=original_first_thunk_offset,
+                    entry_data=int_entry.to_bytes(4, byteorder='little')
+                )
+                original_first_thunk_offset += 4
+        
+        import_table_offset += 20
+    
+    # Parse the IMPORT ADDRESS TABLE (IAT)
+    if import_address_table_rva:
+        iat_offset = pe.get_offset_from_rva(import_address_table_rva)
+        while True:
+            iat_entry_size = 8 if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE['IMAGE_FILE_MACHINE_AMD64'] else 4
+            iat_entry_data = pe.get_data(iat_offset, iat_entry_size)
+            if int.from_bytes(iat_entry_data, byteorder='little') == 0:  # End of the IAT
+                break
+
+            parsed_tables.import_address_table[iat_offset] = ImportAddressTableEntry(
+                offset=iat_offset,
+                entry_data=iat_entry_data
+            )
+            iat_offset += iat_entry_size # Move to the next IAT entry
+
+    return all_in_executable, parsed_tables
+
+@lru_cache(maxsize=None)
+def adjust_parsed_tables(parsed_tables, offset_diff):
+    # Adjust Import Table Entries (IDT)
+    for dll_name, entry in parsed_tables.import_table.items():
+        if entry.OriginalFirstThunk != 0:
+            entry.OriginalFirstThunk += offset_diff
+            print(f"Adjusted OriginalFirstThunk RVA for {dll_name}: {hex(entry.OriginalFirstThunk)}")  # Debugging output
+        if entry.Name != 0:
+            entry.Name += offset_diff
+            print(f"Adjusted Name RVA for {dll_name}: {hex(entry.Name)}")  # Debugging output
+        if entry.FirstThunk != 0:
+            entry.FirstThunk += offset_diff
+            print(f"Adjusted FirstThunk RVA for {dll_name}: {hex(entry.FirstThunk)}")  # Debugging output
+    
+    # Adjust Import Name Table Entries (INT)
+    adjusted_import_name_table_entries = {}
+    ordinal_indices = set()
+    current_index = 0
+
+    for offset, entry in parsed_tables.import_name_table.items():
+        new_offset = offset + offset_diff
+        entry_data_value = int.from_bytes(entry.entry_data, byteorder='little')
+
+        if is_ordinal(entry_data_value):
+            ordinal_indices.add(current_index)
+            # print(f"INT entry at offset {hex(offset)} is an Ordinal: {hex(entry_data_value)}")
+            adjusted_import_name_table_entries[new_offset] = ImportNameTableEntry(
+                offset=new_offset,
+                entry_data=entry_data_value.to_bytes(4, byteorder='little')
+            )
+        else:
+            entry_data_value += offset_diff
+            adjusted_import_name_table_entries[new_offset] = ImportNameTableEntry(
+                offset=new_offset,
+                entry_data=entry_data_value.to_bytes(4, byteorder='little')
+            )
+            # print(f"Adjusted INT entry at new offset {hex(new_offset)}: {hex(entry_data_value)}")
+        
+        current_index += 1
+    
+    parsed_tables.import_name_table.clear()
+    parsed_tables.import_name_table.update(adjusted_import_name_table_entries)
+
+    # Adjust Import Address Table Entries
+    adjusted_import_address_table_entries = {}
+    current_index = 0
+
+    for offset, entry in parsed_tables.import_address_table.items():
+        new_offset = offset + offset_diff
+        if current_index in ordinal_indices:
+            # print(f"IAT entry at offset {hex(offset)} corresponds to an Ordinal, not updating.")
+            adjusted_import_address_table_entries[new_offset] = ImportAddressTableEntry(
+                offset=new_offset,
+                entry_data=entry_data_value.to_bytes(4, byteorder='little')
+            )
+        else:
+            entry_data_value = int.from_bytes(entry.entry_data, byteorder='little') + offset_diff
+            adjusted_import_address_table_entries[new_offset] = ImportAddressTableEntry(
+                offset=new_offset,
+                entry_data=entry_data_value.to_bytes(4, byteorder='little')
+            )
+        
+        current_index += 1
+    
+    parsed_tables.import_address_table.clear()
+    parsed_tables.import_address_table.update(adjusted_import_address_table_entries)
+
+    return parsed_tables
+
+@lru_cache(maxsize=None)
+def update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables):
+    # Convert cloned_data to bytearray if it's not already
+    cloned_data = bytearray(cloned_data)
+
+    # Reflect the changes back to the PE structure
+    import_table_rva = cloned_pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']].VirtualAddress
+    import_table_offset = cloned_pe.get_offset_from_rva(import_table_rva)
+    # print(f"import table offset: {hex(import_table_offset)}")
+    
+    for dll_name, entry in parsed_tables.import_table.items():
+        # Locate the IMAGE_IMPORT_DESCRIPTOR entry for the DLL
+        for i in range(0, len(parsed_tables.import_table) * 20, 20):  # 20 bytes per IMAGE_IMPORT_DESCRIPTOR entry
+            current_name_rva = int.from_bytes(cloned_data[import_table_offset + i + 12:import_table_offset + i + 16], 'little')
+            # print(f"Checking entry {i//20 + 1}: current_name_rva = {hex(current_name_rva)}, entry name: {hex(entry.Name)}")
+            
+            if entry.OriginalFirstThunk:
+                cloned_data[import_table_offset + i:import_table_offset + i + 4] = struct.pack('<I', entry.OriginalFirstThunk)
+                # print(f"Updated OriginalFirstThunk for {dll_name} at offset {hex(import_table_offset + i)}: {hex(entry.OriginalFirstThunk)}")
+
+            if entry.Name:
+                cloned_data[import_table_offset + i + 12:import_table_offset + i + 16] = struct.pack('<I', entry.Name)
+                # print(f"Updated Name for {dll_name} at offset {hex(import_table_offset + i + 12)}: {hex(entry.Name)}")
+
+            if entry.FirstThunk:
+                cloned_data[import_table_offset + i + 16:import_table_offset + i + 20] = struct.pack('<I', entry.FirstThunk)
+                # print(f"Updated FirstThunk for {dll_name} at offset {hex(import_table_offset + i + 16)}: {hex(entry.FirstThunk)}")
+        
+    # Update IAT and INT entries similarly
+    for offset, entry in parsed_tables.import_address_table.items():
+        cloned_data[offset:offset + len(entry.entry_data)] = entry.entry_data
+        # print(f"Updated IAT entry at offset {hex(offset)} with data: {entry.entry_data.hex()}")
+
+    for offset, entry in parsed_tables.import_name_table.items():
+        cloned_data[offset:offset + len(entry.entry_data)] = entry.entry_data
+        # print(f"Updated INT entry at offset {hex(offset)} with data: {entry.entry_data.hex()}")
+
+    return cloned_data
+
+@lru_cache(maxsize=None)
+def is_ordinal(entry_value):
+    """
+    Check if the given INT or IAT entry value indicates an Ordinal.
+
+    Args:
+        entry_value (int): The value of the INT or IAT entry.
+
+    Returns:
+        bool: True if the entry is an Ordinal, False otherwise.
+    """
+    # Ordinal if the highest bit is set
+    return (entry_value & 0x80000000) != 0
+
+@lru_cache(maxsize=None)
+def restore_bound_import_directory(data: bytes, bound_import_data: bytes) -> bytes:
+    pe = pefile.PE(data=data)
+
+    # Print the Bound Import Directory data to verify parsing
+    print(f"Restoring Bound Import Directory Data: {bound_import_data.hex()}")
+
+    # calculate the end of the last section header + padding
+    section_table_offset = pe.DOS_HEADER.e_lfanew + 0x18 + pe.FILE_HEADER.SizeOfOptionalHeader
+    section_count = pe.FILE_HEADER.NumberOfSections
+    last_section_offset = section_table_offset + section_count * 0x28
+    padding_start = last_section_offset
+
+    # calculate where the padding space ends, taking into account the FileAlignment
+    padding_end = (padding_start + pe.OPTIONAL_HEADER.FileAlignment - 1) & ~(pe.OPTIONAL_HEADER.FileAlignment - 1)
+
+    # Ensure there's enough space in the padding area
+    if len(bound_import_data) > (padding_end - padding_start):
+        raise ValueError("Not enough space in padding area to restore BOUND IMPORT DIRECTORY.")
+    
+    # Insert Bound Import Directory into the padding area
+    restored_data = bytearray(data)
+    for i in range(len(bound_import_data)):
+        restored_data[padding_start + i] = bound_import_data[i]
+
+    pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].VirtualAddress = padding_start
+    pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].Size = len(bound_import_data)
+
+    # Calculate the offset of the Data Directory within the PE header
+    data_directory_offset = (
+        pe.DOS_HEADER.e_lfanew
+        + 0x18  # PE Signature and File Header
+        + pe.FILE_HEADER.SizeOfOptionalHeader  # Optional Header Size
+        - 0x80  # Adjusting to the start of Data Directory
+        + pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT'] * 8  # Offset within Data Directory array
+    )
+
+    # Update the Data Directory in the PE header
+    restored_data[data_directory_offset:data_directory_offset + 4] = struct.pack("<I", padding_start)
+    restored_data[data_directory_offset + 4:data_directory_offset + 8] = struct.pack("<I", len(bound_import_data))
+
+    # Verify that the data was correctly written to the new location
+    written_data = restored_data[padding_start:padding_start + len(bound_import_data)]
+    print(f"Restored Bound Import Directory Data at new offset ({hex(padding_start)}): {written_data.hex()}")
+
+    return bytes(restored_data)
+
+@lru_cache(maxsize=None)
 def generate_random_string(length=8):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
+@lru_cache(maxsize=None)
 def safe_disasm(data, va, size, mode):
     md = capstone.Cs(capstone.CS_ARCH_X86, mode)
     md.detail = True
@@ -36,7 +323,7 @@ def safe_disasm(data, va, size, mode):
             print(f"Capstone decoding error at offset {hex(va + offset)}: {str(e)}")
             offset += 1
 
-
+@lru_cache(maxsize=None)
 def get_disassembled_instructions(data, dst_section_name):
     pe = pefile.PE(data=data)
     dst_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == dst_section_name), None)
@@ -56,15 +343,27 @@ def get_disassembled_instructions(data, dst_section_name):
                                cs_mode )
     return instructions
 
+@lru_cache(maxsize=None)
 def hexify_byte_list(byte_list):
     return ''.join(format(b, '02x') for b in byte_list)
 
-
+@lru_cache(maxsize=None)
 #def clone_section(data: bytes, new_section_name: str, clone_from_name: str) -> bytes:
 def clone_section(data: bytes, new_section_name: str) -> bytes:
     
     pe = pefile.PE(data=data)
+    global bound_import_rva, bound_import_size, bound_import_data
     
+    # Check for Bound Import Directory and backup its RVA and Size
+    bound_import_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].VirtualAddress
+    bound_import_size = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].Size
+
+    if bound_import_rva != 0 and bound_import_size != 0:
+        bound_import_data = pe.get_memory_mapped_image()[bound_import_rva:bound_import_rva + bound_import_size]
+        print(f"Before adding section:\nBound Import Directory Data: {bound_import_data.hex()}")
+    else:
+        bound_import_data = None
+        print("No Bound Import Directory found.")
     
     cloned_section = None
     section_name = None
@@ -107,9 +406,32 @@ def clone_section(data: bytes, new_section_name: str) -> bytes:
   # The permissions for the new section are passed as an argument
     cloned_section = add_section(data, new_section_name, source_data, source_perms)
     
+    # After adding section, check the Bound Import Directory again
+    pe_after = pefile.PE(data=cloned_section)
+    bound_import_rva_after = pe_after.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].VirtualAddress
+    bound_import_size_after = pe_after.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].Size
+
+    print(f"After adding section:\nBound Import Directory RVA: {hex(bound_import_rva_after)}, Size: {bound_import_size_after}")
+
+    # Check if the Bound Import Directory has been overwritten
+    if bound_import_rva != bound_import_rva_after or bound_import_size != bound_import_size_after:
+        bound_import_data_after = pe_after.get_memory_mapped_image()[bound_import_rva_after:bound_import_rva_after + bound_import_size_after]
+        print(f"After adding section:\nBound Import Directory Data: {bound_import_data_after.hex()}")
+    else:
+        bound_import_data_after = None
+        print("After adding section:\nNo Bound Import Directory found.")
+    
+    # Check if the Bound Import Directory has been overwritten
+    if bound_import_data != bound_import_data_after:
+        print("Warning: Bound Import Directory data may have been overwritten!")
+        if bound_import_data:
+            print("Attempting to restore Bound Import Directory...")
+            restored_data = restore_bound_import_directory(cloned_section, bound_import_data)
+            return restored_data, section_name, str(32)
+
     return cloned_section, section_name, str(32)
 
-
+@lru_cache(maxsize=None)
 def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     modifiable_data = bytearray(data)
@@ -154,7 +476,7 @@ def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: 
     
     return modifiable_data
 
-
+@lru_cache(maxsize=None)
 def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     # Locate the code section
@@ -192,7 +514,7 @@ def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: 
     
     return inserted_data
 
-
+@lru_cache(maxsize=None)
 def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_name: str, instructions):
     pe = pefile.PE(data=data)
     # Get source and destination section ranges
@@ -285,6 +607,7 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
     print("Done")                        
     return adjusted_data
 
+@lru_cache(maxsize=None)
 def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_name: str, instructions):
     pe = pefile.PE(data=data)
     
@@ -340,6 +663,7 @@ def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_
                 
     return adjusted_data
 
+@lru_cache(maxsize=None)
 def rename_new_section(data: bytes, ori_section_name: str = None) -> bytes:
     data = bytearray(data)
 
@@ -386,6 +710,7 @@ def rename_new_section(data: bytes, ori_section_name: str = None) -> bytes:
 
     return bytes(data)
 
+@lru_cache(maxsize=None)
 def list_files_by_size(directory):
     try:
         # Get list of files in the directory along with their sizes
@@ -423,8 +748,60 @@ if __name__ == "__main__":
         reloc_section_name = ".reloc"
 
         data = bytearray(open(src_pefile, "rb").read())
+        pe = pefile.PE(data=data)
+
+        all_in_executable, parsed_tables = check_import_tables_in_executable_section(pe)
 
         cloned_data, src_section_name, bitness = clone_section(data, dst_section_name)
+
+        # Reload the PE structure from the cloned data to get the updated section
+        cloned_pe = pefile.PE(data=cloned_data)
+
+        # Get the VA of the first and last executable section
+        original_section_va = None
+        new_section_va = None
+
+        for section in cloned_pe.sections:
+            if section.Characteristics & 0x20000000:  # Check if the section has execute permissions
+                if original_section_va is None:
+                    original_section_va = section.VirtualAddress
+                new_section_va = section.VirtualAddress
+
+        print(f"Original: {hex(original_section_va)}, Cloned: {hex(new_section_va)}")
+        if all_in_executable is True and original_section_va is not None and new_section_va is not None:
+            # calculate the offset difference
+            offset_diff = new_section_va - original_section_va
+
+            # adjust the IMPORT TABLE and IMPORT ADDRESS TABLE entries in the DATA_DIRECTORY
+            cloned_pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']].VirtualAddress += offset_diff
+            cloned_pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']].VirtualAddress += offset_diff
+
+            # Saved the modified PE file
+            cloned_data = bytearray(cloned_pe.write())
+
+            # Adjust parsed_tables entries with the offset difference
+            parsed_tables = adjust_parsed_tables(parsed_tables, offset_diff)
+
+            # print("\nParsed Import Table Entries after modification:")
+            # for dll_name, entry in parsed_tables.import_table.items():
+            #     print(f"DLL Name: {dll_name}")
+            #     print(f"    OriginalFirstThunk: {hex(entry.OriginalFirstThunk)}")
+            #     print(f"    Name: {hex(entry.Name)}")
+            #     print(f"    FirstThunk: {hex(entry.FirstThunk)}")
+
+            # print("\nParsed Import Address Table Entries after modification:")
+            # for offset, entry in parsed_tables.import_address_table.items():
+            #     print(f"Offset: {hex(offset)}")
+            #     print(f"    Entry Data: {entry.entry_data.hex()}")
+                
+            # print("\nParsed Import Name Table (INT) Entries after modification:")
+            # for offset, entry in parsed_tables.import_name_table.items():
+            #     print(f"Offset: {hex(offset)}")
+            #     print(f"    Entry Data: {entry.entry_data.hex()}")
+            
+            # Apply the changes to the binary data
+            cloned_data = update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables)
+
         print("bitness : ",bitness,type(bitness))
         
         if bitness == str(64):
