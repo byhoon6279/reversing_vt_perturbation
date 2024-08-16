@@ -513,7 +513,7 @@ def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: 
     
     return inserted_data
 
-@lru_cache(maxsize=None)
+
 def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_name: str, instructions):
     pe = pefile.PE(data=data)
     # Get source and destination section ranges
@@ -606,7 +606,7 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
     print("Done")                        
     return adjusted_data
 
-@lru_cache(maxsize=None)
+
 def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_name: str, instructions):
     pe = pefile.PE(data=data)
     
@@ -708,7 +708,7 @@ def rename_new_section(data: bytes, ori_section_name: str = None) -> bytes:
 
     return bytes(data)
 
-@lru_cache(maxsize=None)
+
 def list_files_by_size(directory):
     try:
         # Get list of files in the directory along with their sizes
