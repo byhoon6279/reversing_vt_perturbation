@@ -4,6 +4,6 @@ git add .
 git commit -m "$COMMIT_MESSAGE"
 
 # 원격 저장소로 푸시
-git push -f origin
+git push origin
 
 echo "Changes have been pushed to GitHub with message: $COMMIT_MESSAGE"

@@ -92,7 +92,7 @@ def modify_section(file_path, new_text, save_dir, number_of_nop, fin = None):
         new_path = os.path.join(directory, file_name)
         
         os.rename(file_path.replace(file_format, "_adding_"+number_of_nop+file_format), new_path)
-        #os.system('rm -rf ./'+save_dir)
+        os.system('rm -rf ./'+save_dir)
         print("modified_section_return save_dir : ",new_path)
         return new_path
 
@@ -128,48 +128,51 @@ def modify_tramp(save_dir, modified_address, fin = None):
     decoded_instructions = decode_instructions(binary_data, text_start, bitness)
  
     array_offset = 0
+    
+    try:
+        for (offset, size, instruction, hexdump) in decoded_instructions:
+            if '90' not in hexdump:
+                print(offset, hex(offset), size, instruction, hexdump)
 
-    for (offset, size, instruction, hexdump) in decoded_instructions:
-        if '90' not in hexdump:
-            print(offset, hex(offset), size, instruction, hexdump)
+                present_address = hex(offset)
+                array_offset = offset
+                instruction_len = size
+                instruction = hexdump
 
-            present_address = hex(offset)
-            array_offset = offset
-            instruction_len = size
-            instruction = hexdump
+                offset = to_little_endian(instruction[2:])
+                int_operand = hex_to_signed_int(offset)
 
-            offset = to_little_endian(instruction[2:])
-            int_operand = hex_to_signed_int(offset)
+                target_address = instruction_len + int(present_address,16) + int_operand
+                new_address = modified_address[target_address]
 
-            target_address = instruction_len + int(present_address,16) + int_operand
-            new_address = modified_address[target_address]
+                new_offset = new_address - instruction_len - int(present_address,16)
 
-            new_offset = new_address - instruction_len - int(present_address,16)
+                operand = hex(new_offset).replace('x','0',1)
 
-            operand = hex(new_offset).replace('x','0',1)
+                if len(operand)%2 !=0:
+                    new_operand = '0'+operand
+                    operand = new_operand
 
-            if len(operand)%2 !=0:
-                new_operand = '0'+operand
-                operand = new_operand
+                operand = to_little_endian(operand)
+                operand += '0' * (8-len(operand))
 
-            operand = to_little_endian(operand)
-            operand += '0' * (8-len(operand))
+                if fin:
+                    print("Trampoline Address : ",hex(target_address),"-->",hex(new_address))
+                    print(".Tramp operand : ",operand,len(operand))
 
-            if fin:
-                print("Trampoline Address : ",hex(target_address),"-->",hex(new_address))
-                print(".Tramp operand : ",operand,len(operand))
+                new_value =  bytes.fromhex(('e9'+operand))
 
-            new_value =  bytes.fromhex(('e9'+operand))
+                break
 
-            break
+        print(new_value)
 
-    print(new_value)
+        # 변경된 데이터를 PE 파일에 반영
+        pe.set_bytes_at_offset(array_offset, new_value)
 
-    # 변경된 데이터를 PE 파일에 반영
-    pe.set_bytes_at_offset(array_offset, new_value)
-
-    output_file_path = file_path 
-    pe.write(output_file_path)
+        output_file_path = file_path 
+        pe.write(output_file_path)
+    except:
+        pass
     
 def modify_rdata(save_dir, modified_address, fin = None):
     # PE 파일 로드
@@ -678,6 +681,7 @@ def make_new_text(file_path ,number_of_nop):
     modified_address={}
     
     for instr in tqdm(decoder):
+        
         time.sleep(0.0001)
         
         checker_80 = 0
@@ -691,18 +695,18 @@ def make_new_text(file_path ,number_of_nop):
         present_address = (instr.ip+nop_cnt+increase_instr)
         
         modified_address[instr.ip] = present_address
-        
+        #print(hex(instr.ip),hex(present_address),instr, present_instr.hex(), type(present_instr), instr.ip, present_address, type(instr.ip),code_to_string(instr.code),"|",increase_instr, type(present_instr))
         if any(x in disasm for x in ('ret', 'int 3', 'nop')):
             new_text += present_instr
             continue
         
         op = disasm.split(' ')[0]
         
-        if ('push' in op) or ('pop' in op) or ('test' in op) or ('xor' in op):
-            new_text += present_instr
-            new_text += (b'\x90'*number_of_nop)
-            nop_cnt+=(1*number_of_nop) 
-            continue 
+#         if ('push' in op) or ('pop' in op) or ('test' in op) or ('xor' in op):
+#             new_text += present_instr
+#             new_text += (b'\x90'*number_of_nop)
+#             nop_cnt+=(1*number_of_nop) 
+#             continue 
             
         prefixes = ''
         ori_present_instr = present_instr
@@ -983,6 +987,7 @@ def make_new_text(file_path ,number_of_nop):
 
                 mc_code =  bytes.fromhex((new_ins))
                 new_text += mc_code
+                
                 checking_target_address[present_address] = target_address
                 caller_callee_dict[instr.ip] = address
 
@@ -1020,33 +1025,39 @@ def calc_offset(target_address, address, ori_operand, op_code, size):
 
 def unmatched_address_chacker(modified_address, caller_callee_dict, checking_target_address):
     
+    
     new_address_to_ori_address = {v:k for k,v in modified_address.items()} # new address to original
     modifying_address = {}
 
     for caller,callee in checking_target_address.items():
-        
-        if caller in new_address_to_ori_address and callee in new_address_to_ori_address:
-            ori_caller = new_address_to_ori_address[caller]
-            ori_callee = new_address_to_ori_address[callee]
-            
-            if caller_callee_dict[ori_caller] != ori_callee:
-                modifying_address[caller] = modified_address[caller_callee_dict[ori_caller]]
-                continue
+        try:
 
-        else:
-            if caller in new_address_to_ori_address:
+            if caller in new_address_to_ori_address and callee in new_address_to_ori_address:
                 ori_caller = new_address_to_ori_address[caller]
-                ori_callee = caller_callee_dict[ori_caller]                
-                new_callee = modified_address[ori_callee]
-                modifying_address[caller] = new_callee
-                continue
-
-            if callee in new_address_to_ori_address:
                 ori_callee = new_address_to_ori_address[callee]
-                ori_caller = caller_callee_dict[ori_callee]
-                new_caller = modified_address[ori_caller]
-                modifying_address[new_caller] = callee
-                continue
+
+                if caller_callee_dict[ori_caller] != ori_callee:
+                    #modifying_address[caller] = modified_address[caller_callee_dict[ori_caller]]
+                    modifying_address[caller] = modified_address[caller_callee_dict[ori_caller]]
+                    continue
+
+            else:
+                if caller in new_address_to_ori_address:
+                    ori_caller = new_address_to_ori_address[caller]
+                    ori_callee = caller_callee_dict[ori_caller]                
+                    new_callee = modified_address[ori_callee]
+                    modifying_address[caller] = new_callee
+                    continue
+
+                if callee in new_address_to_ori_address:
+                    ori_callee = new_address_to_ori_address[callee]
+                    ori_caller = caller_callee_dict[ori_callee]
+                    new_caller = modified_address[ori_caller]
+                    modifying_address[new_caller] = callee
+                    continue
+                    
+        except KeyError:
+            continue
 
     return modifying_address
 
@@ -1123,83 +1134,88 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
     decoded_instructions = decode_instructions(binary_data, text_start, bitness)
 
     for target, destination in modifying_address.items():
-        checker_80 = 0
-        #print("target : ",target, decoded_instructions)
-        address_type, address, instrcution, hexdump, size = is_direct_address(target, decoded_instructions)
+        try:
+            checker_80 = 0
+            #print("target : ",target, decoded_instructions):
+            address_type, address, instrcution, hexdump, size = is_direct_address(target, decoded_instructions)
 
-        instr_str = str(instrcution)
-        present_instr = hexdump
-        
-        prefixes = None
-        
-        prefixes, present_instr = is_prefixes(present_instr.hex().upper())
+            instr_str = str(instrcution)
+            present_instr = hexdump
 
-        if 'REL' not in address_type: # 절대주소
-            value = address_pattern_short.findall(instr_str)
+            prefixes = None
+            #print(present_instr)
+            prefixes, present_instr = is_prefixes(present_instr.upper())
 
-            if not value:
-                value = address_pattern_long.findall(instr_str)
+            if 'REL' not in address_type: # 절대주소
+                value = address_pattern_short.findall(instr_str)
 
-                if len(present_instr) == 14 and present_instr[-2:] == '80':
-                    checker_80 = 1
+                if not value:
+                    value = address_pattern_long.findall(instr_str)
 
-            if value:
-                value, hex_value = value_int_convert(value)
+                    if len(present_instr) == 14 and present_instr[-2:] == '80':
+                        checker_80 = 1
 
-            else:
-                value = 0
+                if value:
+                    value, hex_value = value_int_convert(value)
 
-            if text_start <= value <= text_end:
-                caller_callee_dict[target] = value
-                target_address = to_little_endian(hex_value) + '00'
+                else:
+                    value = 0
+
+                if text_start <= value <= text_end:
+                    caller_callee_dict[target] = value
+                    target_address = to_little_endian(hex_value) + '00'
+                    op_code = present_instr[:2]
+
+                    operand = hex(destination).replace('x','0',1) # target_address affset
+                    operand = to_little_endian(operand)
+
+                    if checker_80 == 1:
+                        op_code = present_instr[:6]                    
+                        new_ins = op_code+operand+'80'
+
+                        if prefixes:
+                            new_ins = prefixes+op_code+operand+'80'
+
+                        new_ins = new_ins.replace('0080','80',1)
+
+                    else:
+                        #print(op_code.hex(),operand)
+                        new_ins = op_code.hex()+operand
+
+            elif 'REL' in address_type: # 상대주소:
                 op_code = present_instr[:2]
-
-                operand = hex(destination).replace('x','0',1) # target_address affset
-                operand = to_little_endian(operand)
-
-                if checker_80 == 1:
-                    op_code = present_instr[:6]                    
-                    new_ins = op_code+operand+'80'
-
-                    if prefixes:
-                        new_ins = prefixes+op_code+operand+'80'
-
-                    new_ins = new_ins.replace('0080','80',1)
-
-                else: 
-                    new_ins = op_code+operand
-
-        elif 'REL' in address_type: # 상대주소:
-            op_code = present_instr[:2]
-            operand = present_instr[2:]
-            ori_operand = operand
-
-            if len(operand)>8:
-                op_code = present_instr[:4]
-                operand = present_instr[4:]
+                operand = present_instr[2:]
                 ori_operand = operand
 
-            value = address_pattern_short.findall(instr_str)
+                if len(operand)>8:
+                    op_code = present_instr[:4]
+                    operand = present_instr[4:]
+                    ori_operand = operand
 
-            if value: #상대주소
-                new_ins, op_code,operand = calc_offset(destination, address, ori_operand, op_code, size)
+                value = address_pattern_short.findall(instr_str)
 
-            else:
-                value = address_pattern_long.findall(instr_str)
                 if value: #상대주소
-                    new_ins,op_code,operand  = calc_offset(destination, address, ori_operand, op_code, size)
+                    new_ins, op_code,operand = calc_offset(destination, address, ori_operand, op_code, size)
 
-        binary_data = modify_instruction_at_address(binary_data, text_section, target, new_ins)
+                else:
+                    value = address_pattern_long.findall(instr_str)
+                    if value: #상대주소
+                        new_ins,op_code,operand  = calc_offset(destination, address, ori_operand, op_code, size)
 
+            binary_data = modify_instruction_at_address(binary_data, text_section, target, new_ins)
+        except:
+            pass
+        
     #new_text = binary_data
     print(f"[++] original .text section length : {text_section.Misc}")
     print(f"[++] new .text section length : {len(binary_data)}") 
-    
+
     #print(ori_binary_data == binary_data)
     new_text = modify_headers(file_path, binary_data, fin = 1)
     save_dir = modify_section(file_path, new_text, save_dir, str(number_of_nop), fin = 1)
     modify_tramp(save_dir, modified_address, fin = 1)
     modify_rdata(save_dir, modified_address, fin = 1)
+
     
 if __name__ == '__main__':
         
@@ -1216,25 +1232,28 @@ if __name__ == '__main__':
             continue
 
 #         if 'PEview_new.exe' not in sample:
-        if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample:
+        if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample or 'Frombook_new.exe' in sample:
 #         if 'hello_32_new.exe' not in sample:
             continue
 
         file_path = sample_dir+sample
 
         print(file_path)
-                 
-        new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+        try:         
+            new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
 
-        if new_text is None:
-            print(f"[+] Error : failed to make new_text section.") 
-            
-        else:
-            print("len_new_text: ",len(new_text))
-            new_text = modify_headers(file_path, new_text)
-            save_dir = modify_section(file_path, new_text, save_dir,number_of_nop)
-            print(len(modified_address))
-            modify_tramp(save_dir, modified_address)
-            save_dir = modify_rdata(save_dir, modified_address)
-            #valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
-            print("Done!!",sample)
+            if new_text is None:
+                print(f"[+] Error : failed to make new_text section.") 
+
+            else:
+                print("len_new_text: ",len(new_text))
+                new_text = modify_headers(file_path, new_text)
+                save_dir = modify_section(file_path, new_text, save_dir,number_of_nop)
+                print(len(modified_address))
+                modify_tramp(save_dir, modified_address)
+                save_dir = modify_rdata(save_dir, modified_address)
+                valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+                print("Done!!",sample)
+                
+        except pefile.PEFormatError:
+            continue 

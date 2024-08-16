@@ -42,14 +42,14 @@ bound_import_rva = 0
 bound_import_size = 0
 bound_import_data = 0
 
-@lru_cache(maxsize=None)
+
 def is_in_executable_section(pe, rva):
     for section in pe.sections:
         if (section.VirtualAddress <= rva < section.VirtualAddress + section.Misc_VirtualSize) and (section.Characteristics & 0x20000000):
             return True
     return False
 
-@lru_cache(maxsize=None)
+
 def check_import_tables_in_executable_section(pe) -> Union[bool, ParsedImportTables]:
     all_in_executable = True
     parsed_tables = ParsedImportTables()
@@ -127,7 +127,7 @@ def check_import_tables_in_executable_section(pe) -> Union[bool, ParsedImportTab
 
     return all_in_executable, parsed_tables
 
-@lru_cache(maxsize=None)
+
 def adjust_parsed_tables(parsed_tables, offset_diff):
     # Adjust Import Table Entries (IDT)
     for dll_name, entry in parsed_tables.import_table.items():
@@ -196,7 +196,7 @@ def adjust_parsed_tables(parsed_tables, offset_diff):
 
     return parsed_tables
 
-@lru_cache(maxsize=None)
+
 def update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables):
     # Convert cloned_data to bytearray if it's not already
     cloned_data = bytearray(cloned_data)
@@ -235,7 +235,7 @@ def update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables):
 
     return cloned_data
 
-@lru_cache(maxsize=None)
+
 def is_ordinal(entry_value):
     """
     Check if the given INT or IAT entry value indicates an Ordinal.
@@ -249,7 +249,7 @@ def is_ordinal(entry_value):
     # Ordinal if the highest bit is set
     return (entry_value & 0x80000000) != 0
 
-@lru_cache(maxsize=None)
+
 def restore_bound_import_directory(data: bytes, bound_import_data: bytes) -> bytes:
     pe = pefile.PE(data=data)
 
@@ -296,11 +296,11 @@ def restore_bound_import_directory(data: bytes, bound_import_data: bytes) -> byt
 
     return bytes(restored_data)
 
-@lru_cache(maxsize=None)
+
 def generate_random_string(length=8):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-@lru_cache(maxsize=None)
+
 def safe_disasm(data, va, size, mode):
     md = capstone.Cs(capstone.CS_ARCH_X86, mode)
     md.detail = True
@@ -323,7 +323,7 @@ def safe_disasm(data, va, size, mode):
             print(f"Capstone decoding error at offset {hex(va + offset)}: {str(e)}")
             offset += 1
 
-@lru_cache(maxsize=None)
+
 def get_disassembled_instructions(data, dst_section_name):
     pe = pefile.PE(data=data)
     dst_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == dst_section_name), None)
@@ -343,7 +343,7 @@ def get_disassembled_instructions(data, dst_section_name):
                                cs_mode )
     return instructions
 
-@lru_cache(maxsize=None)
+
 def hexify_byte_list(byte_list):
     return ''.join(format(b, '02x') for b in byte_list)
 
@@ -430,7 +430,7 @@ def clone_section(data: bytes, new_section_name: str) -> bytes:
 
     return cloned_section, section_name, str(32)
 
-@lru_cache(maxsize=None)
+
 def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     modifiable_data = bytearray(data)
@@ -475,7 +475,7 @@ def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: 
     
     return modifiable_data
 
-@lru_cache(maxsize=None)
+
 def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     # Locate the code section
@@ -662,7 +662,6 @@ def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_
                 
     return adjusted_data
 
-@lru_cache(maxsize=None)
 def rename_new_section(data: bytes, ori_section_name: str = None) -> bytes:
     data = bytearray(data)
 
@@ -734,104 +733,104 @@ if __name__ == "__main__":
     #rint(sample_dir)
     
     for sample in sample_dir:
-        #try:
-        print(sample)
+        try:
+            print(sample)
 
-        if '.ipynb' in sample or 'section_move' in sample:
+            if '.ipynb' in sample or 'section_move' in sample:
+                continue
+
+            src_pefile = input_dir+sample
+            dst_pefile = '../sample/section_move_sample/'+sample.replace('.exe','_new.exe')
+            dst_pefile = '../sample/section_move_sample/'+sample.replace('.dll','_new.dll')
+
+            dst_section_name = ".new"
+            reloc_section_name = ".reloc"
+
+            data = bytearray(open(src_pefile, "rb").read())
+            pe = pefile.PE(data=data)
+
+            all_in_executable, parsed_tables = check_import_tables_in_executable_section(pe)
+
+            cloned_data, src_section_name, bitness = clone_section(data, dst_section_name)
+
+            # Reload the PE structure from the cloned data to get the updated section
+            cloned_pe = pefile.PE(data=cloned_data)
+
+            # Get the VA of the first and last executable section
+            original_section_va = None
+            new_section_va = None
+
+            for section in cloned_pe.sections:
+                if section.Characteristics & 0x20000000:  # Check if the section has execute permissions
+                    if original_section_va is None:
+                        original_section_va = section.VirtualAddress
+                    new_section_va = section.VirtualAddress
+
+            #print(f"Original: {hex(original_section_va)}, Cloned: {hex(new_section_va)}")
+            if all_in_executable is True and original_section_va is not None and new_section_va is not None:
+                # calculate the offset difference
+                offset_diff = new_section_va - original_section_va
+
+                # adjust the IMPORT TABLE and IMPORT ADDRESS TABLE entries in the DATA_DIRECTORY
+                cloned_pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']].VirtualAddress += offset_diff
+                cloned_pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']].VirtualAddress += offset_diff
+
+                # Saved the modified PE file
+                cloned_data = bytearray(cloned_pe.write())
+
+                # Adjust parsed_tables entries with the offset difference
+                parsed_tables = adjust_parsed_tables(parsed_tables, offset_diff)
+
+                # print("\nParsed Import Table Entries after modification:")
+                # for dll_name, entry in parsed_tables.import_table.items():
+                #     print(f"DLL Name: {dll_name}")
+                #     print(f"    OriginalFirstThunk: {hex(entry.OriginalFirstThunk)}")
+                #     print(f"    Name: {hex(entry.Name)}")
+                #     print(f"    FirstThunk: {hex(entry.FirstThunk)}")
+
+                # print("\nParsed Import Address Table Entries after modification:")
+                # for offset, entry in parsed_tables.import_address_table.items():
+                #     print(f"Offset: {hex(offset)}")
+                #     print(f"    Entry Data: {entry.entry_data.hex()}")
+
+                # print("\nParsed Import Name Table (INT) Entries after modification:")
+                # for offset, entry in parsed_tables.import_name_table.items():
+                #     print(f"Offset: {hex(offset)}")
+                #     print(f"    Entry Data: {entry.entry_data.hex()}")
+
+                # Apply the changes to the binary data
+                cloned_data = update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables)
+
+            print("bitness : ",bitness,type(bitness))
+
+            if bitness == str(64):
+                print("not suopport 64bit binary")
+                continue
+
+            modified_data = modify_reloc_section(cloned_data, src_section_name, dst_section_name)
+            patched_data = insert_trampoline_code(modified_data, src_section_name, dst_section_name)
+
+    #         # Fetch disassembled instructions for the destination section
+    #         instructions = get_disassembled_instructions(patched_data, dst_section_name)
+    #         adjusted_data = adjust_instruction_offsets(patched_data, src_section_name, dst_section_name, instructions)
+
+    #         # Fetch disassembled instructions for the destination section
+    #         instructions = get_disassembled_instructions(adjusted_data, dst_section_name)
+    #         adjusted64_data = adjust_rip_relative_offsets(adjusted_data, src_section_name, dst_section_name, instructions)
+
+            adjusted64_data = rename_new_section(patched_data, src_section_name)
+            #open(output_file, "wb").write(new_data)
+
+            open(dst_pefile, "wb").write(adjusted64_data)
+
+        except pefile.PEFormatError:
             continue
-
-        src_pefile = input_dir+sample
-        dst_pefile = '../sample/section_move_sample/'+sample.replace('.exe','_new.exe')
-        dst_pefile = '../sample/section_move_sample/'+sample.replace('.dll','_new.dll')
-
-        dst_section_name = ".new"
-        reloc_section_name = ".reloc"
-
-        data = bytearray(open(src_pefile, "rb").read())
-        pe = pefile.PE(data=data)
-
-        all_in_executable, parsed_tables = check_import_tables_in_executable_section(pe)
-
-        cloned_data, src_section_name, bitness = clone_section(data, dst_section_name)
-
-        # Reload the PE structure from the cloned data to get the updated section
-        cloned_pe = pefile.PE(data=cloned_data)
-
-        # Get the VA of the first and last executable section
-        original_section_va = None
-        new_section_va = None
-
-        for section in cloned_pe.sections:
-            if section.Characteristics & 0x20000000:  # Check if the section has execute permissions
-                if original_section_va is None:
-                    original_section_va = section.VirtualAddress
-                new_section_va = section.VirtualAddress
-
-        print(f"Original: {hex(original_section_va)}, Cloned: {hex(new_section_va)}")
-        if all_in_executable is True and original_section_va is not None and new_section_va is not None:
-            # calculate the offset difference
-            offset_diff = new_section_va - original_section_va
-
-            # adjust the IMPORT TABLE and IMPORT ADDRESS TABLE entries in the DATA_DIRECTORY
-            cloned_pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']].VirtualAddress += offset_diff
-            cloned_pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']].VirtualAddress += offset_diff
-
-            # Saved the modified PE file
-            cloned_data = bytearray(cloned_pe.write())
-
-            # Adjust parsed_tables entries with the offset difference
-            parsed_tables = adjust_parsed_tables(parsed_tables, offset_diff)
-
-            # print("\nParsed Import Table Entries after modification:")
-            # for dll_name, entry in parsed_tables.import_table.items():
-            #     print(f"DLL Name: {dll_name}")
-            #     print(f"    OriginalFirstThunk: {hex(entry.OriginalFirstThunk)}")
-            #     print(f"    Name: {hex(entry.Name)}")
-            #     print(f"    FirstThunk: {hex(entry.FirstThunk)}")
-
-            # print("\nParsed Import Address Table Entries after modification:")
-            # for offset, entry in parsed_tables.import_address_table.items():
-            #     print(f"Offset: {hex(offset)}")
-            #     print(f"    Entry Data: {entry.entry_data.hex()}")
-
-            # print("\nParsed Import Name Table (INT) Entries after modification:")
-            # for offset, entry in parsed_tables.import_name_table.items():
-            #     print(f"Offset: {hex(offset)}")
-            #     print(f"    Entry Data: {entry.entry_data.hex()}")
-
-            # Apply the changes to the binary data
-            cloned_data = update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables)
-
-        print("bitness : ",bitness,type(bitness))
-
-        if bitness == str(64):
-            print("not suopport 64bit binary")
-            continue
-
-        modified_data = modify_reloc_section(cloned_data, src_section_name, dst_section_name)
-        patched_data = insert_trampoline_code(modified_data, src_section_name, dst_section_name)
-
-        # Fetch disassembled instructions for the destination section
-        instructions = get_disassembled_instructions(patched_data, dst_section_name)
-        adjusted_data = adjust_instruction_offsets(patched_data, src_section_name, dst_section_name, instructions)
-
-        # Fetch disassembled instructions for the destination section
-        instructions = get_disassembled_instructions(adjusted_data, dst_section_name)
-        adjusted64_data = adjust_rip_relative_offsets(adjusted_data, src_section_name, dst_section_name, instructions)
-
-        adjusted64_data = rename_new_section(adjusted64_data, src_section_name)
-        #open(output_file, "wb").write(new_data)
-
-        open(dst_pefile, "wb").write(adjusted64_data)
-            
-#         except pefile.PEFormatError:
-#             continue
             
 #         except TypeError:
 #             continue
             
-#         except IndexError:
-#             continue
+        except IndexError:
+            continue
             
-#         except UnboundLocalError:
-#             continue
+        except UnboundLocalError:
+            continue
