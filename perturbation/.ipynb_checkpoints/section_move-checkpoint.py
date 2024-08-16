@@ -62,7 +62,7 @@ def check_import_tables_in_executable_section(pe) -> Union[bool, ParsedImportTab
         # print(f"IMPORT TABLE at RVA {hex(import_table_rva)} is NOT in an executable section.")
         all_in_executable = False
     else:
-        # print(f"IMPORT TABLE at RVA {hex(import_table_rva)} is in an executable section.")
+        print(f"IMPORT TABLE at RVA {hex(import_table_rva)} is in an executable section.")
 
     if not is_in_executable_section(pe, import_address_table_rva):
         # print(f"IAT at RVA {hex(import_address_table_rva)} is NOT in an executable section.")
@@ -347,7 +347,6 @@ def get_disassembled_instructions(data, dst_section_name):
 def hexify_byte_list(byte_list):
     return ''.join(format(b, '02x') for b in byte_list)
 
-@lru_cache(maxsize=None)
 #def clone_section(data: bytes, new_section_name: str, clone_from_name: str) -> bytes:
 def clone_section(data: bytes, new_section_name: str) -> bytes:
     
@@ -735,15 +734,16 @@ if __name__ == "__main__":
     #rint(sample_dir)
     
     for sample in sample_dir:
+        #try:
         print(sample)
-        
+
         if '.ipynb' in sample or 'section_move' in sample:
             continue
-     
+
         src_pefile = input_dir+sample
         dst_pefile = '../sample/section_move_sample/'+sample.replace('.exe','_new.exe')
         dst_pefile = '../sample/section_move_sample/'+sample.replace('.dll','_new.dll')
-    
+
         dst_section_name = ".new"
         reloc_section_name = ".reloc"
 
@@ -793,17 +793,17 @@ if __name__ == "__main__":
             # for offset, entry in parsed_tables.import_address_table.items():
             #     print(f"Offset: {hex(offset)}")
             #     print(f"    Entry Data: {entry.entry_data.hex()}")
-                
+
             # print("\nParsed Import Name Table (INT) Entries after modification:")
             # for offset, entry in parsed_tables.import_name_table.items():
             #     print(f"Offset: {hex(offset)}")
             #     print(f"    Entry Data: {entry.entry_data.hex()}")
-            
+
             # Apply the changes to the binary data
             cloned_data = update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables)
 
         print("bitness : ",bitness,type(bitness))
-        
+
         if bitness == str(64):
             print("not suopport 64bit binary")
             continue
@@ -823,3 +823,15 @@ if __name__ == "__main__":
         #open(output_file, "wb").write(new_data)
 
         open(dst_pefile, "wb").write(adjusted64_data)
+            
+#         except pefile.PEFormatError:
+#             continue
+            
+#         except TypeError:
+#             continue
+            
+#         except IndexError:
+#             continue
+            
+#         except UnboundLocalError:
+#             continue
