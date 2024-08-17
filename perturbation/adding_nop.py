@@ -1295,6 +1295,34 @@ def process_sample(sample):
         print(f"[+] PEFormatError: {sample}")
         return
 
+# def main():
+#     sample_dir = '../evaluation/section_move_sample/'
+#     save_dir = '../evaluation/perturbated_sample/adding_nop/'
+    
+#     samples = list_files_by_size(sample_dir)
+#     create_directory(save_dir)
+
+#     # 필터링을 추가하여 유효한 샘플만 처리하도록 합니다.
+#     samples = [sample for sample in samples if not any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip'])]
+
+#     # 멀티프로세싱을 위해 Pool 생성
+#     num_processes = max(1, multiprocessing.cpu_count() // 2)  # 최소 1개의 프로세스를 사용하도록 설정
+#     with multiprocessing.Pool(processes=num_processes) as pool:
+#         pool.map(process_sample, samples)
+
+# if __name__ == '__main__':
+#     main()
+#------------------------------------multi processing version main function--------------------------------------------------------
+
+#------------------------------------Dynamic Task Assignment with Job Queue multi processing version main function--------------------------------------------------------
+def worker(input_queue):
+    while True:
+        sample = input_queue.get()
+        if sample is None:
+            break
+        process_sample(sample)
+        input_queue.task_done()
+
 def main():
     sample_dir = '../evaluation/section_move_sample/'
     save_dir = '../evaluation/perturbated_sample/adding_nop/'
@@ -1302,13 +1330,36 @@ def main():
     samples = list_files_by_size(sample_dir)
     create_directory(save_dir)
 
-    # 필터링을 추가하여 유효한 샘플만 처리하도록 합니다.
+    # 유효한 샘플만 필터링
     samples = [sample for sample in samples if not any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip'])]
 
-    # 멀티프로세싱을 위해 Pool 생성
-    num_processes = max(1, multiprocessing.cpu_count() // 2)  # 최소 1개의 프로세스를 사용하도록 설정
-    with multiprocessing.Pool(processes=num_processes) as pool:
-        pool.map(process_sample, samples)
+    # 작업 큐 생성
+    input_queue = multiprocessing.JoinableQueue()
+
+    # CPU 코어 수의 절반만 사용하도록 설정
+    num_processes = max(1, multiprocessing.cpu_count() // 2)
+
+    # 워커 프로세스 생성 및 시작
+    processes = []
+    for _ in range(num_processes):
+        p = multiprocessing.Process(target=worker, args=(input_queue,))
+        p.start()
+        processes.append(p)
+
+    # 작업 큐에 작업 추가
+    for sample in samples:
+        input_queue.put(sample)
+
+    # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
+    input_queue.join()
+    for _ in range(num_processes):
+        input_queue.put(None)
+
+    # 워커 프로세스 종료
+    for p in processes:
+        p.join()
+
+    print("All tasks are completed.")
 
 if __name__ == '__main__':
     main()
