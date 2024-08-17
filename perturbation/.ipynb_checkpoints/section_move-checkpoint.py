@@ -727,7 +727,8 @@ if __name__ == "__main__":
     #src_pefile = "../sample/hello_32.exe"
     #dst_pefile = "../sample/hello_32_new.exe"
     
-    input_dir = '../sample/input_sample/'
+    #input_dir = '../sample/input_sample/'
+    input_dir = '../../../../DikeDataset/malware/'
     #sample_dir = list_files_by_size(sys.argv[1])
     sample_dir = list_files_by_size(input_dir)
     #rint(sample_dir)
@@ -740,8 +741,11 @@ if __name__ == "__main__":
                 continue
 
             src_pefile = input_dir+sample
-            dst_pefile = '../sample/section_move_sample/'+sample.replace('.exe','_new.exe')
-            dst_pefile = '../sample/section_move_sample/'+sample.replace('.dll','_new.dll')
+#             dst_pefile = '../sample/section_move_sample/'+sample.replace('.exe','_new.exe')
+#             dst_pefile = '../sample/section_move_sample/'+sample.replace('.dll','_new.dll')
+            
+            dst_pefile = '../evaluation/section_move_sample/'+sample.replace('.exe','_new.exe')
+            dst_pefile = '../evaluation/section_move_sample/'+sample.replace('.dll','_new.dll')
 
             dst_section_name = ".new"
             reloc_section_name = ".reloc"
@@ -834,3 +838,6 @@ if __name__ == "__main__":
             
         except UnboundLocalError:
             continue
+            
+        except UnicodeDecodeError:
+            pass

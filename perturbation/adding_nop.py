@@ -11,6 +11,7 @@ import r2pipe
 from tqdm import tqdm
 from common_function import *
 from functools import lru_cache
+import multiprocessing
 
 old_rawPointer = 0
 old_nextPointer = 0
@@ -181,42 +182,45 @@ def modify_rdata(save_dir, modified_address, fin = None):
 
     # .rdata 섹션 찾기
     for section in pe.sections:
-        if section.Name.decode().strip('\x00').lower() in ['.data', '.rdata', 'data', 'const']: # add malware's custom section name if you want
-            section = section
-            rdata_start = section.VirtualAddress
-            rdata_end = rdata_start + section.Misc_VirtualSize
-            section_size = section.SizeOfRawData
-            section_start = section.PointerToRawData
+        try:
+            if section.Name.decode().strip('\x00').lower() in ['.data', '.rdata', 'data', 'const']: # add malware's custom section name if you want
+                section = section
+                rdata_start = section.VirtualAddress
+                rdata_end = rdata_start + section.Misc_VirtualSize
+                section_size = section.SizeOfRawData
+                section_start = section.PointerToRawData
 
-            data = bytearray(pe.get_memory_mapped_image()[rdata_start:rdata_start + section_size])
-            #print(data)
+                data = bytearray(pe.get_memory_mapped_image()[rdata_start:rdata_start + section_size])
+                #print(data)
 
-            # 절대 주소 필터링을 위한 범위 설정
-            image_base = pe.OPTIONAL_HEADER.ImageBase
-            text_section = next(section for section in pe.sections if section.Name.rstrip(b'\x00').lower() == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE')
-            text_start = text_section.VirtualAddress + image_base
-            text_end = text_start + text_section.Misc_VirtualSize
+                # 절대 주소 필터링을 위한 범위 설정
+                image_base = pe.OPTIONAL_HEADER.ImageBase
+                text_section = next(section for section in pe.sections if section.Name.rstrip(b'\x00').lower() == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE')
+                text_start = text_section.VirtualAddress + image_base
+                text_end = text_start + text_section.Misc_VirtualSize
 
-            for i in range(0, section.Misc_VirtualSize, 4):
-                value = int.from_bytes(pe.get_data(rdata_start + i, 4), byteorder='little')
+                for i in range(0, section.Misc_VirtualSize, 4):
+                    value = int.from_bytes(pe.get_data(rdata_start + i, 4), byteorder='little')
 
-                if text_start <= value < text_end:
-                    # 절대 주소 수정
-                    #try:
-                    if value in modified_address:
-                        #if modified_address[value]:
-                        new_address = modified_address[value]
-                        index = data.find(pe.get_data(rdata_start + i, 4))
+                    if text_start <= value < text_end:
+                        # 절대 주소 수정
+                        #try:
+                        if value in modified_address:
+                            #if modified_address[value]:
+                            new_address = modified_address[value]
+                            index = data.find(pe.get_data(rdata_start + i, 4))
 
-                        if fin:
-                            print("Modified Address : ", hex(value)," --> ",hex(new_address))
+                            if fin:
+                                print("Modified Address : ", hex(value)," --> ",hex(new_address))
 
-                        new_address = hex(new_address).replace('x','0',1)
-                        new_address = to_little_endian(new_address)
-                        pe.set_bytes_at_offset(section_start + index, bytes.fromhex(new_address))
-                   # except:
-                    else:
-                        continue
+                            new_address = hex(new_address).replace('x','0',1)
+                            new_address = to_little_endian(new_address)
+                            pe.set_bytes_at_offset(section_start + index, bytes.fromhex(new_address))
+                       # except:
+                        else:
+                            continue
+        except ValueError:
+            pass
 
     # 수정된 PE 파일 저장
     output_file_path = save_dir
@@ -1216,44 +1220,95 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
     modify_tramp(save_dir, modified_address, fin = 1)
     modify_rdata(save_dir, modified_address, fin = 1)
 
-    
-if __name__ == '__main__':
+#------------------------------------Single processing version main function--------------------------------------------------------   
+# if __name__ == '__main__':
         
-    sample_dir = '../sample/section_move_sample/'
-    save_dir = '../sample/perturbated_sample/adding_nop/'
+#     #sample_dir = '../sample/section_move_sample/'
+#     #save_dir = '../sample/perturbated_sample/adding_nop/'
+    
+            
+#     sample_dir = '../evaluation/section_move_sample/'
+#     save_dir = '../evaluation/perturbated_sample/adding_nop/'
+    
+#     samples = list_files_by_size(sample_dir)
+#     create_directory(save_dir)
+    
+#     number_of_nop = 1
+#     for sample in samples:
+#         #save_dir = '../sample/perturbated_sample/adding_nop/'
+#         save_dir = '../evaluation/perturbated_sample/adding_nop/'
+#         if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
+#             continue
+
+# #         if 'PEview_new.exe' not in sample:
+# #         if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample or 'Frombook_new.exe' in sample:
+# #         if 'hello_32_new.exe' not in sample:
+#             continue
+
+#         file_path = sample_dir+sample
+
+#         print(file_path)
+#         try:         
+#             new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+
+#             if new_text is None:
+#                 print(f"[+] Error : failed to make new_text section.") 
+
+#             else:
+#                 print("len_new_text: ",len(new_text))
+#                 new_text = modify_headers(file_path, new_text)
+#                 save_dir = modify_section(file_path, new_text, save_dir,number_of_nop)
+#                 print(len(modified_address))
+#                 modify_tramp(save_dir, modified_address)
+#                 save_dir = modify_rdata(save_dir, modified_address)
+#                 valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+#                 print("Done!!",sample)
+                
+#         except pefile.PEFormatError:
+#             continue 
+
+
+#------------------------------------multi processing version main function--------------------------------------------------------
+def process_sample(sample):
+    sample_dir = '../evaluation/section_move_sample/'
+    save_dir = '../evaluation/perturbated_sample/adding_nop/'
+    
+    file_path = sample_dir + sample
+    
+    number_of_nop = 1
+    
+    try:
+        new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+
+        if new_text is None:
+            print(f"[+] Error: failed to make new_text section for {sample}.") 
+            return
+
+        new_text = modify_headers(file_path, new_text)
+        save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
+        modify_tramp(save_dir, modified_address)
+        save_dir = modify_rdata(save_dir, modified_address)
+        valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+        print(f"Done processing {sample}")
+        
+    except pefile.PEFormatError:
+        print(f"[+] PEFormatError: {sample}")
+        return
+
+def main():
+    sample_dir = '../evaluation/section_move_sample/'
+    save_dir = '../evaluation/perturbated_sample/adding_nop/'
     
     samples = list_files_by_size(sample_dir)
     create_directory(save_dir)
-    
-    number_of_nop = 1
-    for sample in samples:
-        save_dir = '../sample/perturbated_sample/adding_nop/'
-        if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
-            continue
 
-#         if 'PEview_new.exe' not in sample:
-        if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample or 'Frombook_new.exe' in sample:
-#         if 'hello_32_new.exe' not in sample:
-            continue
+    # 필터링을 추가하여 유효한 샘플만 처리하도록 합니다.
+    samples = [sample for sample in samples if not any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip'])]
 
-        file_path = sample_dir+sample
+    # 멀티프로세싱을 위해 Pool 생성
+    num_processes = max(1, multiprocessing.cpu_count() // 2)  # 최소 1개의 프로세스를 사용하도록 설정
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        pool.map(process_sample, samples)
 
-        print(file_path)
-        try:         
-            new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
-
-            if new_text is None:
-                print(f"[+] Error : failed to make new_text section.") 
-
-            else:
-                print("len_new_text: ",len(new_text))
-                new_text = modify_headers(file_path, new_text)
-                save_dir = modify_section(file_path, new_text, save_dir,number_of_nop)
-                print(len(modified_address))
-                modify_tramp(save_dir, modified_address)
-                save_dir = modify_rdata(save_dir, modified_address)
-                valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
-                print("Done!!",sample)
-                
-        except pefile.PEFormatError:
-            continue 
+if __name__ == '__main__':
+    main()
