@@ -1005,12 +1005,12 @@ def make_new_text(file_path ,number_of_nop):
 def calc_offset(target_address, address, ori_operand, op_code, size):
     
     if address > target_address:
-        print(" up jump")
+        #print(" up jump")
         new_operand = address - target_address - size #len(instr)
         operand = negative_to_little_endian_hex(new_operand)
 
     if address < target_address:
-        print(" down jump")
+        #print(" down jump")
         new_operand = target_address - address - size #len(instr)
         operand = hex(new_operand).replace('x','0',1) # target_address affset
         operand = operand.replace('00','',1)
@@ -1271,11 +1271,11 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
 #------------------------------------multi processing version main function--------------------------------------------------------
 def process_sample(sample):
     sample_dir = '../evaluation/section_move_sample/'
-    save_dir = '../evaluation/perturbated_sample/adding_nop/'
+    save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
     
     file_path = sample_dir + sample
     
-    number_of_nop = 1
+    number_of_nop = 100
     
     try:
         new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
@@ -1325,7 +1325,7 @@ def worker(input_queue):
 
 def main():
     sample_dir = '../evaluation/section_move_sample/'
-    save_dir = '../evaluation/perturbated_sample/adding_nop/'
+    save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
     
     samples = list_files_by_size(sample_dir)
     create_directory(save_dir)
@@ -1337,7 +1337,7 @@ def main():
     input_queue = multiprocessing.JoinableQueue()
 
     # CPU 코어 수의 절반만 사용하도록 설정
-    num_processes = max(1, multiprocessing.cpu_count() // 2)
+    num_processes = max(1, multiprocessing.cpu_count() // 10)
 
     # 워커 프로세스 생성 및 시작
     processes = []
