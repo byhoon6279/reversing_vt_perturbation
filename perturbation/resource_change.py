@@ -85,9 +85,9 @@ def modify_data_sections(section_name, data, function_list):
 #                             or(re.findall( r'^(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$',text)):
         
                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or \
-                    ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) and not re.findall(r'[-+,#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
+                    ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) and not re.findall(r'[-+#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
                         ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text))\
-                        or (re.findall( r'^(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$',text)):
+                        or (re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}',text)) and (not re.findall(r'<[^>]+>', text) and not re.findall(r'=',text)):
         
                     format_specifier = ''
             
