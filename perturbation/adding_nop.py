@@ -1269,9 +1269,135 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
 
 
 #------------------------------------multi processing version main function--------------------------------------------------------
+# def process_sample(sample):
+#     sample_dir = '../evaluation/section_move_sample/'
+#     save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
+    
+#     file_path = sample_dir + sample
+    
+#     number_of_nop = 100
+    
+#     try:
+#         new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+
+#         if new_text is None:
+#             print(f"[+] Error: failed to make new_text section for {sample}.") 
+#             return
+
+#         new_text = modify_headers(file_path, new_text)
+#         save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
+#         modify_tramp(save_dir, modified_address)
+#         save_dir = modify_rdata(save_dir, modified_address)
+#         valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+#         print(f"Done processing {sample}")
+        
+#     except pefile.PEFormatError:
+#         print(f"[+] PEFormatError: {sample}")
+#         return
+
+# def main():
+#     sample_dir = '../evaluation/section_move_sample/'
+#     save_dir = '../evaluation/perturbated_sample/adding_nop/'
+    
+#     samples = list_files_by_size(sample_dir)
+#     create_directory(save_dir)
+
+#     # 필터링을 추가하여 유효한 샘플만 처리하도록 합니다.
+#     samples = [sample for sample in samples if not any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip'])]
+
+#     # 멀티프로세싱을 위해 Pool 생성
+#     num_processes = max(1, multiprocessing.cpu_count() // 2)  # 최소 1개의 프로세스를 사용하도록 설정
+#     with multiprocessing.Pool(processes=num_processes) as pool:
+#         pool.map(process_sample, samples)
+
+# if __name__ == '__main__':
+#     main()
+#------------------------------------multi processing version main function--------------------------------------------------------
+
+#------------------------------------Dynamic Task Assignment with Job Queue multi processing version main function--------------------------------------------------------
+
+# def process_sample(sample):
+#     sample_dir = '../evaluation/section_move_sample/'
+#     save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
+    
+#     file_path = sample_dir + sample
+    
+#     number_of_nop = 100
+    
+#     try:
+#         new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+
+#         if new_text is None:
+#             print(f"[+] Error: failed to make new_text section for {sample}.") 
+#             return
+
+#         new_text = modify_headers(file_path, new_text)
+#         save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
+#         modify_tramp(save_dir, modified_address)
+#         save_dir = modify_rdata(save_dir, modified_address)
+#         valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+#         print(f"Done processing {sample}")
+        
+#     except pefile.PEFormatError:
+#         print(f"[+] PEFormatError: {sample}")
+#         return
+    
+    
+# def worker(input_queue):
+#     while True:
+#         sample = input_queue.get()
+#         if sample is None:
+#             break
+#         process_sample(sample)
+#         input_queue.task_done()
+
+# def main():
+#     sample_dir = '../evaluation/section_move_sample/'
+#     save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
+    
+#     samples = list_files_by_size(sample_dir)
+#     create_directory(save_dir)
+
+#     # 유효한 샘플만 필터링
+#     samples = [sample for sample in samples if not any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip'])]
+
+#     # 작업 큐 생성
+#     input_queue = multiprocessing.JoinableQueue()
+
+#     # CPU 코어 수의 절반만 사용하도록 설정
+#     num_processes = max(1, multiprocessing.cpu_count() // 10)
+
+#     # 워커 프로세스 생성 및 시작
+#     processes = []
+#     for _ in range(num_processes):
+#         p = multiprocessing.Process(target=worker, args=(input_queue,))
+#         p.start()
+#         processes.append(p)
+
+#     # 작업 큐에 작업 추가
+#     for sample in samples:
+#         input_queue.put(sample)
+
+#     # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
+#     input_queue.join()
+#     for _ in range(num_processes):
+#         input_queue.put(None)
+
+#     # 워커 프로세스 종료
+#     for p in processes:
+#         p.join()
+
+#     print("All tasks are completed.")
+
+# if __name__ == '__main__':
+#     main()
+
 def process_sample(sample):
-    sample_dir = '../evaluation/section_move_sample/'
-    save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
+    #sample_dir = '../evaluation/section_move_sample/'
+    #save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
+    
+    sample_dir = '../evaluation//clamav/resource_change_involve_data/'
+    save_dir = '../evaluation/clamav/resource_change+adding_nop_100/'
     
     file_path = sample_dir + sample
     
@@ -1294,27 +1420,8 @@ def process_sample(sample):
     except pefile.PEFormatError:
         print(f"[+] PEFormatError: {sample}")
         return
-
-# def main():
-#     sample_dir = '../evaluation/section_move_sample/'
-#     save_dir = '../evaluation/perturbated_sample/adding_nop/'
     
-#     samples = list_files_by_size(sample_dir)
-#     create_directory(save_dir)
-
-#     # 필터링을 추가하여 유효한 샘플만 처리하도록 합니다.
-#     samples = [sample for sample in samples if not any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip'])]
-
-#     # 멀티프로세싱을 위해 Pool 생성
-#     num_processes = max(1, multiprocessing.cpu_count() // 2)  # 최소 1개의 프로세스를 사용하도록 설정
-#     with multiprocessing.Pool(processes=num_processes) as pool:
-#         pool.map(process_sample, samples)
-
-# if __name__ == '__main__':
-#     main()
-#------------------------------------multi processing version main function--------------------------------------------------------
-
-#------------------------------------Dynamic Task Assignment with Job Queue multi processing version main function--------------------------------------------------------
+    
 def worker(input_queue):
     while True:
         sample = input_queue.get()
@@ -1324,8 +1431,8 @@ def worker(input_queue):
         input_queue.task_done()
 
 def main():
-    sample_dir = '../evaluation/section_move_sample/'
-    save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
+    sample_dir = '../evaluation//clamav/resource_change_involve_data/'
+    save_dir = '../evaluation/clamav/resource_change+adding_nop_100/'
     
     samples = list_files_by_size(sample_dir)
     create_directory(save_dir)

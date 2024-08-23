@@ -11,6 +11,7 @@ import shutil
 from identify import identify
 import pickle
 from functools import lru_cache
+from common_function import *
 
 old_rawPointer = 0
 modified_section_data = {}
@@ -78,24 +79,43 @@ def modify_data_sections(section_name, data, function_list):
 #                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type)\
 #                         or ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text)):
 #                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or (re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{3,}\b',text)):
+#                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or \
+#                         (re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) or re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text) and not re.findall(r'[-+,#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
+#                             ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text))\
+#                             or(re.findall( r'^(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$',text)):
+        
                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or \
-                        (re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) and not re.findall(r'[-+,#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:.&]',text)) or \
-                            ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text)):
-
+                    ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) and not re.findall(r'[-+,#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
+                        ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text))\
+                        or (re.findall( r'^(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$',text)):
+        
+                    format_specifier = ''
+            
                     if text in api_list:
                         modified_text = modified_data[start:end]
                         modified_text = bytes(modified_text)
                         modified_data[start:end] = modified_text
                         continue
-
+                        
+                    if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text):
+                        format_specifier = re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)[0]
+                        last_text= text.split(format_specifier)[-1]
+                        text = text.split(format_specifier)[0]
+                        
+                        format_specifier = format_specifier + last_text
+                    
                     # 샘플링 크기를 letters_set 길이로 제한
                     if len(text) <= len(letters_set):
                         random_list = random.sample(letters_set, len(text))
                     else:
                         random_list = random.choices(letters_set, k=len(text))
                     
-                    #print(text, random_list, section_name)
+
                     modified_text = ''.join(random_list)
+                    
+                    if format_specifier:
+                        modified_text = modified_text+format_specifier
+                        
                     modified_text = bytes(modified_text, 'utf-8')
                     modified_data[start:end] = modified_text
                     continue
@@ -110,6 +130,7 @@ def modify_data_sections(section_name, data, function_list):
 
         except Exception as e:
             print(f"Error processing text: {text}, section {section_name}: {str(e)}")
+            #print(text, random_list, section_name)
 #             modified_text = modified_data[start:end]
 #             modified_text = bytes(modified_text)
 #             modified_data[start:end] = modified_text
@@ -182,16 +203,28 @@ def change_resource_case(file_path, output_path):
     
 if __name__ == "__main__":
     
-    sample_dir = '../sample/input_sample/'
-    save_dir = '../sample/perturbated_sample/resource_change/' 
+#     sample_dir = '../evaluation//clamav/adding_nop_100//'
+#     save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
+    
+    sample_dir = '../sample/benign/'
+    save_dir = '../evaluation/perturbated_sample_benign/'
     
     samples = list_files_by_size(sample_dir)
     create_directory(save_dir)
 
     for sample in samples:
+        
+#         if '26a9022148303f7cc2c95a782aa3b13b18f6af05b3d28a18e93754c8bc6b28e6_adding_100' not in sample:
+#             continue
 
         if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample): #or 'calc' not in sample:)
             continue
+        try:   
+            change_resource_case(sample_dir+sample, save_dir)
+            print(f"Resource case changed for {sample}","\n")
             
-        change_resource_case(sample_dir+sample, save_dir)
-        print(f"Resource case changed for {sample}","\n")
+        except pefile.PEFormatError:
+            continue
+            
+        except ValueError: # 샘플 확인해서 해결해야함
+            continue
