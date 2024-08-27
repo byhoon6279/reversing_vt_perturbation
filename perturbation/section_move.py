@@ -431,88 +431,34 @@ def get_disassembled_instructions(data, dst_section_name):
     return instructions
 
 
-#def clone_section(data: bytes, new_section_name: str, clone_from_name: str) -> bytes:
-def clone_section(data: bytes, new_section_name: str) -> bytes:
-    
+def clone_section(data: bytes) -> bytes:
     pe = pefile.PE(data=data)
-    global bound_import_rva, bound_import_size, bound_import_data
-    
-    # Check for Bound Import Directory and backup its RVA and Size
-    bound_import_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].VirtualAddress
-    bound_import_size = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].Size
+    cloned_data = data [:]
 
-    if bound_import_rva != 0 and bound_import_size != 0:
-        bound_import_data = pe.get_memory_mapped_image()[bound_import_rva:bound_import_rva + bound_import_size]
-        print(f"Before adding section:\nBound Import Directory Data: {bound_import_data.hex()}")
-    else:
-        bound_import_data = None
-        print("No Bound Import Directory found.")
-    
-    cloned_section = None
-    section_name = None
+    backup_bound_import_directory(pe)
 
-    if pe.FILE_HEADER.Machine == 0x8664:
-        return cloned_section, section_name, str(64)
+    executable_sections = [ section for section in get_pe_sections(pe) if section.is_executable ]
+    if not executable_sections:
+        raise ValueError("No valid section found for cloning")
     
-    # Find the section to clone from by its name
-    #source_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == clone_from_name), None)
-    text_section = None
-    
-    for section in pe.sections:
-        section_name = section.Name.decode().strip('\x00').lower()
-        if section_name in ['.text', 'text', 'code', '.code']:
-            source_section = section
-            section_name=section.Name.decode().strip('\x00')
-            break
-#         if section.Name.decode().strip('\x00') == '.text':
-#             source_section = section
-#             section_name=section.Name.decode().strip('\x00')
-#             break
-#         if section.Name.decode().strip('\x00') == 'CODE':
-#             source_section = section
-#             section_name=section.Name.decode().strip('\x00')
-#             break
-#         if section.Name.decode().strip('\x00') == 'code':
-#             source_section = section
-#             section_name=section.Name.decode().strip('\x00')
-#             break
-            
-    # Extract the data from the section to be cloned
-    source_data = data[source_section.PointerToRawData:source_section.PointerToRawData + source_section.SizeOfRawData]
-    
-    #source_data = data[section.PointerToRawData:section.PointerToRawData + section.SizeOfRawData]
-    source_perms = (PERM.EXEC if source_section.Characteristics & 0x20000000 else 0) | \
-    (PERM.READ if source_section.Characteristics & 0x40000000 else 0) | \
-    (PERM.WRITE if source_section.Characteristics & 0x80000000 else 0) 
+    original_sections_info = []
+    cloned_sections_info = []
+    clone_index = 0
+    for section in executable_sections:
+        logging.info(f"Cloning section: {section.name}")
 
-  # Add a new section with the data from the source section
-  # The permissions for the new section are passed as an argument
-    cloned_section = add_section(data, new_section_name, source_data, source_perms)
-    
-    # After adding section, check the Bound Import Directory again
-    pe_after = pefile.PE(data=cloned_section)
-    bound_import_rva_after = pe_after.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].VirtualAddress
-    bound_import_size_after = pe_after.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].Size
+        cloned_section_name = f".clone{clone_index}"
+        clone_index += 1
 
-    print(f"After adding section:\nBound Import Directory RVA: {hex(bound_import_rva_after)}, Size: {bound_import_size_after}")
+        source_data = cloned_data[section.raw_data_offset:section.raw_data_offset + section.raw_data_size]
+        source_perms = determine_section_permissions(section)
+        cloned_data = add_section(cloned_data, cloned_section_name, source_data, source_perms)
+        cloned_data = verify_bound_import_directory(bytearray(cloned_data))
 
-    # Check if the Bound Import Directory has been overwritten
-    if bound_import_rva != bound_import_rva_after or bound_import_size != bound_import_size_after:
-        bound_import_data_after = pe_after.get_memory_mapped_image()[bound_import_rva_after:bound_import_rva_after + bound_import_size_after]
-        print(f"After adding section:\nBound Import Directory Data: {bound_import_data_after.hex()}")
-    else:
-        bound_import_data_after = None
-        print("After adding section:\nNo Bound Import Directory found.")
-    
-    # Check if the Bound Import Directory has been overwritten
-    if bound_import_data != bound_import_data_after:
-        print("Warning: Bound Import Directory data may have been overwritten!")
-        if bound_import_data:
-            print("Attempting to restore Bound Import Directory...")
-            restored_data = restore_bound_import_directory(cloned_section, bound_import_data)
-            return restored_data, section_name, str(32)
+        original_sections_info.append(section.name)
+        cloned_sections_info.append(cloned_section_name)
 
-    return cloned_section, section_name, str(32)
+    return cloned_data, original_sections_info, cloned_sections_info
 
 
 def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: str) -> bytes:
