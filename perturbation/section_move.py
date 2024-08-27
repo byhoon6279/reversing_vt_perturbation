@@ -582,12 +582,10 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
         raise ValueError(f"One of the sections {src_section_name}, {dst_section_name} not found")
         
     # Calculate the offset difference between the sections
-    offset_diff = (dst_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase) - (src_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase)
+    rva_diff = (dst_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase) - (src_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase)
     
     # Adjust instructions with relative addressing pointing to dst_section
     adjusted_data = bytearray(data)
-    print("Disassembling executable section:")
-    print(instructions)
     for ins in instructions:
         for op in ins.operands:
             if op.type == capstone.CS_OP_IMM:
@@ -597,17 +595,16 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
                         imm_size = 4
                     elif pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE['IMAGE_FILE_MACHINE_AMD64']:
                         imm_size = 8 if op.size == 64 else 4  # Adjust based on operand size
-                        # imm_size = 4 if op.size == 32 else 8
                         
                     imm_offset = ins.address - (dst_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase) + (ins.size - imm_size)
-                    new_imm_value = imm_value + offset_diff
+                    new_imm_value = imm_value + rva_diff
                     adjusted_data[dst_section.PointerToRawData + imm_offset:dst_section.PointerToRawData + imm_offset + imm_size] = new_imm_value.to_bytes(imm_size, byteorder='little', signed=True)
-                    print(f"Updated Address: {hex(ins.address)}, Mnemonic: {ins.mnemonic}, Original Target: {hex(imm_value)}, Updated Target: {hex(new_imm_value)}")
+                    logging.debug(f"Updated Address: {hex(ins.address)}, From {hex(imm_value)} To {hex(new_imm_value)} updated..")
     
         if ins.mnemonic == "mov" and ins.operands[0].type == 3 and ins.operands[1].type == 2: # capstone.CS_OP_MEM and capstone.CS_OP_IMM
             offset_value = ins.operands[0].mem.disp
             imm_value = ins.operands[1].imm
-            print(f"Detected instruction: {ins.mnemonic} {ins.op_str} at address {hex(ins.address)} with offset [ebp+{hex(offset_value)}], immediate value {hex(imm_value)}")
+            logging.debug(f"Address: {hex(ins.address)}, Detected: {ins.mnemonic} {ins.op_str} with offset [ebp {hex(offset_value)}]")
 
             if (imm_value & 0xFF000000) == 0x80000000:
                 lower_3_bytes = imm_value & 0xFFFFFF
@@ -615,7 +612,7 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
                 src_end = src_start + src_section.Misc_VirtualSize
                 
                 if src_start <= lower_3_bytes < src_end:
-                    new_imm_value = imm_value + offset_diff
+                    new_imm_value = imm_value + rva_diff
                     imm_size = 4
 
                     # Ensure new_imm_value is within 4-byte range
@@ -623,13 +620,14 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
 
                     imm_offset = ins.address - (dst_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase) + (ins.size - imm_size)
                     adjusted_data[dst_section.PointerToRawData + imm_offset:dst_section.PointerToRawData + imm_offset + imm_size] = new_imm_value.to_bytes(imm_size, byteorder='little', signed=False)
-                    print(f"Updated immediate value from {hex(imm_value)} to {hex(new_imm_value)}")
-    
+                    logging.debug(f"Updated immediate value from {hex(imm_value)} to {hex(new_imm_value)}")
     
     # Adjust data section with relative addressing pointing to dst_section
     for section in pe.sections:
-        if section.Name.decode().strip('\x00') in ['.data', '.rdata', 'DATA', 'data', 'const']: # add malware's custom section name if you want
-            print(f"Scanning {section.Name.decode().strip()} for offsets pointing to {src_section_name}")
+        if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] and \
+            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE'] and \
+            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']:
+            logging.debug(f"Scanning {section.Name.decode().strip()} for offsets pointing to {src_section_name}")
             file_offset_start = section.PointerToRawData
             file_offset_end = file_offset_start + section.SizeOfRawData
             
@@ -641,10 +639,9 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
                 for offset in range(file_offset_start, file_offset_end, offset_size):
                     potential_pointer = int.from_bytes(adjusted_data[offset:offset+offset_size], byteorder='little')
                     if src_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase <= potential_pointer < src_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase + src_section.Misc_VirtualSize:
-                        new_pointer = potential_pointer + offset_diff
-                        print(f"Fix pointer at raw offset {hex(offset)}: from {hex(potential_pointer)} to {hex(new_pointer)}")
+                        new_pointer = potential_pointer + rva_diff
+                        logging.debug(f"Fix pointer at raw offset {hex(offset)}: from {hex(potential_pointer)} to {hex(new_pointer)}")
                         adjusted_data[offset:offset+offset_size] = new_pointer.to_bytes(offset_size, byteorder='little')
-                print("32bit done")            
             # for 64-bit pefile
             else:
                 for offset in range(file_offset_start, file_offset_end):
@@ -654,14 +651,13 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
                             
                         potential_pointer = int.from_bytes(adjusted_data[offset:offset + size], byteorder='little')
                         if src_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase <= potential_pointer < src_section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase + src_section.Misc_VirtualSize:
-                            new_pointer = potential_pointer + offset_diff
-                            print(f"Fix pointer at raw offset {hex(offset)}: from {hex(potential_pointer)} to {hex(new_pointer)}")
+                            new_pointer = potential_pointer + rva_diff
+                            logging.debug(f"Fix pointer at raw offset {hex(offset)}: from {hex(potential_pointer)} to {hex(new_pointer)}")
                             adjusted_data[offset:offset + size] = new_pointer.to_bytes(size, byteorder='little')
                             # if section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase <= potential_pointer < section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase + section.Misc_VirtualSize:
                             #   data_offset = potential_pointer - pe.OPTIONAL_HEADER.ImageBase
                             #   actual_data = adjusted_data[data_offset:data_offset + size]
                             #   print(f"Data at pointer in own section {hex(potential_pointer)}: {actual_data.hex()} {size}")
-    print("Done")                        
     return adjusted_data
 
 
