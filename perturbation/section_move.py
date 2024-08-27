@@ -72,14 +72,14 @@ class SectionInfo:
         executable = (characteristics_be & 0x20000000) != 0
         return executable
 
-@lru_cache(maxsize=None)
+
 def is_in_executable_section(pe, rva):
     for section in pe.sections:
         if (section.VirtualAddress <= rva < section.VirtualAddress + section.Misc_VirtualSize) and (section.Characteristics & 0x20000000):
             return True
     return False
 
-@lru_cache(maxsize=None)
+
 def check_import_tables_in_executable_section(pe) -> Union[bool, ParsedImportTables]:
     all_in_executable = True
     parsed_tables = ParsedImportTables()
@@ -157,7 +157,7 @@ def check_import_tables_in_executable_section(pe) -> Union[bool, ParsedImportTab
 
     return all_in_executable, parsed_tables
 
-@lru_cache(maxsize=None)
+
 def adjust_parsed_tables(parsed_tables, offset_diff):
     # Adjust Import Table Entries (IDT)
     for dll_name, entry in parsed_tables.import_table.items():
@@ -226,7 +226,7 @@ def adjust_parsed_tables(parsed_tables, offset_diff):
 
     return parsed_tables
 
-@lru_cache(maxsize=None)
+
 def update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables):
     # Convert cloned_data to bytearray if it's not already
     cloned_data = bytearray(cloned_data)
@@ -265,7 +265,7 @@ def update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables):
 
     return cloned_data
 
-@lru_cache(maxsize=None)
+
 def is_ordinal(entry_value):
     """
     Check if the given INT or IAT entry value indicates an Ordinal.
@@ -279,7 +279,7 @@ def is_ordinal(entry_value):
     # Ordinal if the highest bit is set
     return (entry_value & 0x80000000) != 0
 
-@lru_cache(maxsize=None)
+
 def restore_bound_import_directory(data: bytes, bound_import_data: bytes) -> bytes:
     pe = pefile.PE(data=data)
 
@@ -326,11 +326,11 @@ def restore_bound_import_directory(data: bytes, bound_import_data: bytes) -> byt
 
     return bytes(restored_data)
 
-@lru_cache(maxsize=None)
+
 def generate_random_string(length=8):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
-@lru_cache(maxsize=None)
+
 def safe_disasm(data, va, size, mode):
     md = capstone.Cs(capstone.CS_ARCH_X86, mode)
     md.detail = True
@@ -353,7 +353,7 @@ def safe_disasm(data, va, size, mode):
             print(f"Capstone decoding error at offset {hex(va + offset)}: {str(e)}")
             offset += 1
 
-@lru_cache(maxsize=None)
+
 def get_disassembled_instructions(data, dst_section_name):
     pe = pefile.PE(data=data)
     dst_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == dst_section_name), None)
@@ -373,7 +373,7 @@ def get_disassembled_instructions(data, dst_section_name):
                                cs_mode )
     return instructions
 
-@lru_cache(maxsize=None)
+
 def hexify_byte_list(byte_list):
     return ''.join(format(b, '02x') for b in byte_list)
 
@@ -460,7 +460,7 @@ def clone_section(data: bytes, new_section_name: str) -> bytes:
 
     return cloned_section, section_name, str(32)
 
-@lru_cache(maxsize=None)
+
 def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     modifiable_data = bytearray(data)
@@ -505,7 +505,7 @@ def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: 
     
     return modifiable_data
 
-@lru_cache(maxsize=None)
+
 def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     # Locate the code section
@@ -543,7 +543,7 @@ def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: 
     
     return inserted_data
 
-@lru_cache(maxsize=None)
+
 def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_name: str, instructions):
     pe = pefile.PE(data=data)
     # Get source and destination section ranges
@@ -636,7 +636,7 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
     print("Done")                        
     return adjusted_data
 
-@lru_cache(maxsize=None)
+
 def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_name: str, instructions):
     pe = pefile.PE(data=data)
     
@@ -692,7 +692,7 @@ def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_
                 
     return adjusted_data
 
-@lru_cache(maxsize=None)
+
 def rename_new_section(data: bytes, ori_section_name: str = None) -> bytes:
     data = bytearray(data)
 
@@ -739,7 +739,7 @@ def rename_new_section(data: bytes, ori_section_name: str = None) -> bytes:
 
     return bytes(data)
 
-@lru_cache(maxsize=None)
+
 def list_files_by_size(directory):
     try:
         # Get list of files in the directory along with their sizes
