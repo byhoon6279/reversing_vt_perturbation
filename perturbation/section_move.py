@@ -80,82 +80,106 @@ def is_in_executable_section(pe, rva):
     return False
 
 
-def check_import_tables_in_executable_section(pe) -> Union[bool, ParsedImportTables]:
-    all_in_executable = True
+def parse_import_tables(pe) -> ParsedImportTables:
+    sections = get_pe_sections(pe)
     parsed_tables = ParsedImportTables()
 
+    import_table_rva = None
+    import_address_table_rva = None
+
     # Check the IMPORT TABLE RVA and IAT RVA
-    import_table_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']].VirtualAddress
-    import_address_table_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']].VirtualAddress
+    directory_entry_idt = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']
+    directory_entry_iat = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IAT']
 
-    if not is_in_executable_section(pe, import_table_rva):
-        # print(f"IMPORT TABLE at RVA {hex(import_table_rva)} is NOT in an executable section.")
-        all_in_executable = False
+    if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > directory_entry_idt and \
+        pe.OPTIONAL_HEADER.DATA_DIRECTORY[directory_entry_idt].Size > 0:
+            import_table_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[directory_entry_idt].VirtualAddress
+            for section in sections:
+                if section.section_start <= import_table_rva < section.section_end:
+                    parsed_tables.import_table_section_name = section.name
+                    logging.info(f'IDT found at RVA: {hex(import_table_rva)} - Section: {section.name}')
     else:
-        print(f"IMPORT TABLE at RVA {hex(import_table_rva)} is in an executable section.")
-
-    if not is_in_executable_section(pe, import_address_table_rva):
-        # print(f"IAT at RVA {hex(import_address_table_rva)} is NOT in an executable section.")
-        all_in_executable = False
-    else:
-        print(f"IAT at RVA {hex(import_address_table_rva)} is in an executable section.")
-
-    # Parse the IMPORT TABLE (IDT)
-    import_table_offset = pe.get_offset_from_rva(import_table_rva)
-    while True:
-        descriptor_data = pe.get_data(import_table_offset, 20)
-        if all(b == 0 for b in descriptor_data):
-            break
-
-        descriptor = pefile.Structure(pe.__IMAGE_IMPORT_DESCRIPTOR_format__, file_offset=import_table_offset)
-        descriptor.__unpack__(descriptor_data)
-
-        dll_name_rva = descriptor.Name
-        dll_name_offset = pe.get_offset_from_rva(dll_name_rva)
-        dll_name = pe.get_string_at_rva(dll_name_rva)
-
-        # Store the ImportTableEntry
-        parsed_tables.import_table[dll_name] = ImportTableEntry(
-            OriginalFirstThunk=descriptor.OriginalFirstThunk,
-            TimeDateStamp=descriptor.TimeDateStamp,
-            ForwarderChain=descriptor.ForwarderChain,
-            Name=descriptor.Name,
-            FirstThunk=descriptor.FirstThunk
-        )
-
-        # Parse the INT (Original First Thunk)
-        if descriptor.OriginalFirstThunk:
-            original_first_thunk_offset = pe.get_offset_from_rva(descriptor.OriginalFirstThunk)
-            int_entries = []
-            while True:
-                int_entry = int.from_bytes(pe.get_data(original_first_thunk_offset, 4), byteorder='little')
-                if int_entry == 0:
-                    break
-                
-                parsed_tables.import_name_table[original_first_thunk_offset] = ImportNameTableEntry(
-                    offset=original_first_thunk_offset,
-                    entry_data=int_entry.to_bytes(4, byteorder='little')
-                )
-                original_first_thunk_offset += 4
-        
-        import_table_offset += 20
+        logging.warning('IMPORT_TABLE Data Directory entry NOT found.')
     
-    # Parse the IMPORT ADDRESS TABLE (IAT)
-    if import_address_table_rva:
-        iat_offset = pe.get_offset_from_rva(import_address_table_rva)
+    if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > directory_entry_iat and \
+        pe.OPTIONAL_HEADER.DATA_DIRECTORY[directory_entry_iat].Size > 0:
+        import_address_table_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[directory_entry_iat].VirtualAddress
+        for section in sections:
+            if section.section_start <= import_address_table_rva < section.section_end:
+                parsed_tables.import_address_table_section_name = section.name
+                logging.info(f'IAT found at RVA: {hex(import_address_table_rva)} - Section: {section.name}')
+        
+    else:
+        logging.warning('IMPORT_ADDRESS_TABLE Data Directory entry NOT found.')
+    
+    if not import_table_rva:
+        return parsed_tables
+
+    try:
+        # Parse the IMPORT DIRECTORY TABLEs
         while True:
-            iat_entry_size = 8 if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE['IMAGE_FILE_MACHINE_AMD64'] else 4
-            iat_entry_data = pe.get_data(iat_offset, iat_entry_size)
-            if int.from_bytes(iat_entry_data, byteorder='little') == 0:  # End of the IAT
+            descriptor_data = pe.get_data(import_table_rva, 20)
+            logging.debug(f'Descriptor Data: {hex(import_table_rva)}, {descriptor_data}')
+            if all(b == 0 for b in descriptor_data):
+                logging.debug('End of IMPORT DIRECTORY TABLE entries.')
                 break
+            
+            descriptor = pefile.Structure(pe.__IMAGE_IMPORT_DESCRIPTOR_format__, file_offset=import_table_rva)
+            descriptor.__unpack__(descriptor_data)
 
-            parsed_tables.import_address_table[iat_offset] = ImportAddressTableEntry(
-                offset=iat_offset,
-                entry_data=iat_entry_data
+            logging.debug(f'Descriptor: {descriptor}')
+
+            dll_name_rva = descriptor.Name
+            dll_name = pe.get_string_at_rva(dll_name_rva)
+            logging.debug(f'Processing DLL rva: {hex(dll_name_rva)}, name: {dll_name}')
+
+            parsed_tables.import_table[dll_name] = ImportTableEntry(
+                OriginalFirstThunk=descriptor.OriginalFirstThunk,
+                TimeDateStamp=descriptor.TimeDateStamp,
+                ForwarderChain=descriptor.ForwarderChain,
+                Name=descriptor.Name,
+                FirstThunk=descriptor.FirstThunk
             )
-            iat_offset += iat_entry_size # Move to the next IAT entry
 
-    return all_in_executable, parsed_tables
+            # Parse the Original First Thunk for Import Name Table (INT)
+            if descriptor.OriginalFirstThunk:
+                int_rva = descriptor.OriginalFirstThunk
+                logging.debug(f'OriginalFirstThunk: {hex(descriptor.OriginalFirstThunk)}')
+                while True:
+                    int_entry = int.from_bytes(pe.get_data(int_rva, 4), byteorder='little')
+                    if int_entry == 0:
+                        break
+
+                    parsed_tables.import_name_table[int_rva] = ImportNameTableEntry(
+                        offset=int_rva,
+                        entry_data=int_entry.to_bytes(4, byteorder='little')
+                    )
+                    logging.debug(f'Processing INT rva: {hex(int_rva)}, data: {hex(int_entry)}')
+                    int_rva += 4
+            
+            # Parse the FirstThunk for Import Address Table (IAT)
+            if descriptor.FirstThunk:
+                iat_rva = descriptor.FirstThunk
+                logging.debug(f'FirstThunk: {hex(descriptor.FirstThunk)}')
+                while True:
+                    iat_entry_size = 8 if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE['IMAGE_FILE_MACHINE_AMD64'] else 4
+                    iat_entry = pe.get_data(iat_rva, iat_entry_size)
+                    if int.from_bytes(iat_entry, byteorder='little') == 0:
+                        break
+                    
+                    parsed_tables.import_address_table[iat_rva] = ImportAddressTableEntry(
+                        offset=iat_rva,
+                        entry_data=iat_entry
+                    )
+                    logging.debug(f'Processing IAT rva: {hex(iat_rva)}, offset: {iat_entry}')
+                    iat_rva += iat_entry_size
+            import_table_rva += 20
+
+    except pefile.PEFormatError as e:
+        logging.error(f'PE format error encountered: {str(e)}')
+        return parsed_tables
+    
+    return parsed_tables
 
 
 def adjust_parsed_tables(parsed_tables, offset_diff):
