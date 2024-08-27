@@ -674,7 +674,7 @@ def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_
     
     dst_section_start = pe.OPTIONAL_HEADER.ImageBase + dst_section.VirtualAddress
     dst_section_end = dst_section_start + dst_section.SizeOfRawData
-    print("Disassembling executable section for rip-relative offsets")
+    logging.info("Disassembling executable section for rip-relative offsets")
     for ins in instructions:
         for op in ins.operands:
             if op.type == capstone.x86.X86_OP_MEM and op.mem.base == capstone.x86.X86_REG_RIP:
@@ -711,7 +711,7 @@ def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_
                 new_disp_bytes = new_offset.to_bytes(disp_size, byteorder='little', signed=True)
                 start_position = dst_section.PointerToRawData + (ins.address - pe.OPTIONAL_HEADER.ImageBase - dst_section.VirtualAddress) + pos_in_bytes
                 new_target = dst_next_rip + new_offset
-                print(f"{ins.bytes.hex()} Instruction at {hex(ins.address)}: {ins.mnemonic} {ins.op_str} || Orig Tgt: {hex(original_target)}], New Tgt: {hex(new_target)} || NewOffset: {hex(new_offset)} || Disp hex value: {disp_hex} ==> {new_disp_bytes.hex()}")
+                logging.debug(f"{ins.bytes.hex()} Instruction at {hex(ins.address)}: {ins.mnemonic} {ins.op_str} || Orig Tgt: {hex(original_target)}], New Tgt: {hex(new_target)} || NewOffset: {hex(new_offset)} || Disp hex value: {disp_hex} ==> {new_disp_bytes.hex()}")
                 adjusted_data[start_position:start_position + disp_size] = new_disp_bytes
                 
     return adjusted_data
