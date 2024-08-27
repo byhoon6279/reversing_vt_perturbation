@@ -527,21 +527,21 @@ def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: 
     return modified_data
 
 
-def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: str) -> bytes:
+def modify_reloc_section(data: bytes, src_section_name: str, dst_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     modifiable_data = bytearray(data)
     
     # Locate the code section to find its VirtualAddress
-    text_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == text_section_name), None)
+    text_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == src_section_name), None)
     
     if text_section is None:
-        raise ValueError(f"No section named {text_section_name} found")
+        raise ValueError(f"No section named {src_section_name} found")
     text_va = text_section.VirtualAddress
     
     # Locate the new section to get its VirtualAddress
-    new_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == new_section_name), None)
+    new_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == dst_section_name), None)
     if new_section is None:
-        raise ValueError(f"No section named {new_section_name} found")
+        raise ValueError(f"No section named {dst_section_name} found")
     new_va = new_section.VirtualAddress
     
     # Locate the .reloc section
