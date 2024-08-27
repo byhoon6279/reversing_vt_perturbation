@@ -189,110 +189,77 @@ def parse_import_tables(pe) -> ParsedImportTables:
     return parsed_tables
 
 
-def adjust_parsed_tables(parsed_tables, offset_diff):
-    # Adjust Import Table Entries (IDT)
-    for dll_name, entry in parsed_tables.import_table.items():
-        if entry.OriginalFirstThunk != 0:
-            entry.OriginalFirstThunk += offset_diff
-            print(f"Adjusted OriginalFirstThunk RVA for {dll_name}: {hex(entry.OriginalFirstThunk)}")  # Debugging output
-        if entry.Name != 0:
-            entry.Name += offset_diff
-            print(f"Adjusted Name RVA for {dll_name}: {hex(entry.Name)}")  # Debugging output
-        if entry.FirstThunk != 0:
-            entry.FirstThunk += offset_diff
-            print(f"Adjusted FirstThunk RVA for {dll_name}: {hex(entry.FirstThunk)}")  # Debugging output
-    
-    # Adjust Import Name Table Entries (INT)
-    adjusted_import_name_table_entries = {}
-    ordinal_indices = set()
-    current_index = 0
-
-    for offset, entry in parsed_tables.import_name_table.items():
-        new_offset = offset + offset_diff
-        entry_data_value = int.from_bytes(entry.entry_data, byteorder='little')
-
-        if is_ordinal(entry_data_value):
-            ordinal_indices.add(current_index)
-            # print(f"INT entry at offset {hex(offset)} is an Ordinal: {hex(entry_data_value)}")
-            adjusted_import_name_table_entries[new_offset] = ImportNameTableEntry(
-                offset=new_offset,
-                entry_data=entry_data_value.to_bytes(4, byteorder='little')
-            )
-        else:
-            entry_data_value += offset_diff
-            adjusted_import_name_table_entries[new_offset] = ImportNameTableEntry(
-                offset=new_offset,
-                entry_data=entry_data_value.to_bytes(4, byteorder='little')
-            )
-            # print(f"Adjusted INT entry at new offset {hex(new_offset)}: {hex(entry_data_value)}")
-        
-        current_index += 1
-    
-    parsed_tables.import_name_table.clear()
-    parsed_tables.import_name_table.update(adjusted_import_name_table_entries)
-
-    # Adjust Import Address Table Entries
-    adjusted_import_address_table_entries = {}
-    current_index = 0
-
-    for offset, entry in parsed_tables.import_address_table.items():
-        new_offset = offset + offset_diff
-        if current_index in ordinal_indices:
-            # print(f"IAT entry at offset {hex(offset)} corresponds to an Ordinal, not updating.")
-            adjusted_import_address_table_entries[new_offset] = ImportAddressTableEntry(
-                offset=new_offset,
-                entry_data=entry_data_value.to_bytes(4, byteorder='little')
-            )
-        else:
-            entry_data_value = int.from_bytes(entry.entry_data, byteorder='little') + offset_diff
-            adjusted_import_address_table_entries[new_offset] = ImportAddressTableEntry(
-                offset=new_offset,
-                entry_data=entry_data_value.to_bytes(4, byteorder='little')
-            )
-        
-        current_index += 1
-    
-    parsed_tables.import_address_table.clear()
-    parsed_tables.import_address_table.update(adjusted_import_address_table_entries)
-
-    return parsed_tables
-
-
-def update_pe_with_parsed_tables(cloned_data, cloned_pe, parsed_tables):
-    # Convert cloned_data to bytearray if it's not already
+def update_parsed_tables(cloned_data, cloned_pe, parsed_tables, original_name, rva_diff):
     cloned_data = bytearray(cloned_data)
-
-    # Reflect the changes back to the PE structure
     import_table_rva = cloned_pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_IMPORT']].VirtualAddress
-    import_table_offset = cloned_pe.get_offset_from_rva(import_table_rva)
-    # print(f"import table offset: {hex(import_table_offset)}")
     
-    for dll_name, entry in parsed_tables.import_table.items():
-        # Locate the IMAGE_IMPORT_DESCRIPTOR entry for the DLL
-        for i in range(0, len(parsed_tables.import_table) * 20, 20):  # 20 bytes per IMAGE_IMPORT_DESCRIPTOR entry
-            current_name_rva = int.from_bytes(cloned_data[import_table_offset + i + 12:import_table_offset + i + 16], 'little')
-            # print(f"Checking entry {i//20 + 1}: current_name_rva = {hex(current_name_rva)}, entry name: {hex(entry.Name)}")
+    # Adjust Import Table Entries (IDT)
+    if parsed_tables.import_table_section_name == original_name:
+        for i, (dll_name, entry) in enumerate(parsed_tables.import_table.items()):
+            descriptor_rva = import_table_rva + i * 20
+            if entry.OriginalFirstThunk != 0:
+                entry.OriginalFirstThunk += rva_diff
+                cloned_data[descriptor_rva:descriptor_rva + 4] = struct.pack('<I', entry.OriginalFirstThunk)
+                logging.debug(f"Adjusted OriginalFirstThunk RVA for {dll_name}: {hex(entry.OriginalFirstThunk)}")
+            if entry.Name != 0:
+                entry.Name += rva_diff
+                cloned_data[descriptor_rva + 12:descriptor_rva + 16] = struct.pack('<I', entry.Name)
+                logging.debug(f"Adjusted Name RVA for {dll_name}: {hex(entry.Name)}")
+            if entry.FirstThunk != 0: # IAT가 코드 섹션에 포함되어 있는지 더블체크?
+                entry.FirstThunk += rva_diff
+                cloned_data[descriptor_rva + 16:descriptor_rva + 20] = struct.pack('<I', entry.FirstThunk)
+                logging.debug(f"Adjusted FirstThunk RVA for {dll_name}: {hex(entry.FirstThunk)}")
+    
+        # Adjust Import Name Table Entries (INT)
+        adjusted_import_name_table_entries = {}
+        ordinal_indices = set()
+        current_index = 0
+        for rva, entry in parsed_tables.import_name_table.items():
+            int_rva = rva + rva_diff
+            entry_data_value = int.from_bytes(entry.entry_data, byteorder='little')
+            if is_ordinal(entry_data_value):
+                ordinal_indices.add(current_index)
+                logging.debug(f"INT entry at offset {hex(rva)} is an Ordinal: {hex(entry_data_value)}")
+                adjusted_import_name_table_entries[int_rva] = ImportNameTableEntry(
+                    offset=int_rva,
+                    entry_data=entry_data_value.to_bytes(4, byteorder='little')
+                )
+            else:
+                entry_data_value += rva_diff
+                adjusted_import_name_table_entries[int_rva] = ImportNameTableEntry(
+                    offset=int_rva,
+                    entry_data=entry_data_value.to_bytes(4, byteorder='little')
+                )
+            cloned_data[int_rva:int_rva + 4] = entry_data_value.to_bytes(4, byteorder='little')
+            logging.debug(f"Adjusted INT entry at new offset {hex(int_rva)}: {hex(entry_data_value)}")
             
-            if entry.OriginalFirstThunk:
-                cloned_data[import_table_offset + i:import_table_offset + i + 4] = struct.pack('<I', entry.OriginalFirstThunk)
-                # print(f"Updated OriginalFirstThunk for {dll_name} at offset {hex(import_table_offset + i)}: {hex(entry.OriginalFirstThunk)}")
-
-            if entry.Name:
-                cloned_data[import_table_offset + i + 12:import_table_offset + i + 16] = struct.pack('<I', entry.Name)
-                # print(f"Updated Name for {dll_name} at offset {hex(import_table_offset + i + 12)}: {hex(entry.Name)}")
-
-            if entry.FirstThunk:
-                cloned_data[import_table_offset + i + 16:import_table_offset + i + 20] = struct.pack('<I', entry.FirstThunk)
-                # print(f"Updated FirstThunk for {dll_name} at offset {hex(import_table_offset + i + 16)}: {hex(entry.FirstThunk)}")
+            current_index += 1
         
-    # Update IAT and INT entries similarly
-    for offset, entry in parsed_tables.import_address_table.items():
-        cloned_data[offset:offset + len(entry.entry_data)] = entry.entry_data
-        # print(f"Updated IAT entry at offset {hex(offset)} with data: {entry.entry_data.hex()}")
+        parsed_tables.import_name_table.clear()
+        parsed_tables.import_name_table.update(adjusted_import_name_table_entries)
 
-    for offset, entry in parsed_tables.import_name_table.items():
-        cloned_data[offset:offset + len(entry.entry_data)] = entry.entry_data
-        # print(f"Updated INT entry at offset {hex(offset)} with data: {entry.entry_data.hex()}")
+    # Adjust Import Address Table (IAT) Entries
+    if parsed_tables.import_address_table_section_name == original_name:
+        adjusted_import_address_table_entries = {}
+        current_index = 0
+        for rva, entry in parsed_tables.import_address_table.items():
+            iat_rva = rva + rva_diff
+            if current_index in ordinal_indices:
+                logging.debug(f"IAT entry at offset {hex(rva)} corresponds to an Ordinal, not updating.")
+                adjusted_import_address_table_entries[iat_rva] = ImportAddressTableEntry(
+                    offset=iat_rva,
+                    entry_data=entry_data_value.to_bytes(4, byteorder='little')
+                )
+            else:
+                entry_data_value = int.from_bytes(entry.entry_data, byteorder='little') + rva_diff
+                adjusted_import_address_table_entries[iat_rva] = ImportAddressTableEntry(
+                    offset=iat_rva,
+                    entry_data=entry_data_value.to_bytes(4, byteorder='little')
+                )
+            cloned_data[iat_rva:iat_rva + 4] = entry_data_value.to_bytes(4, byteorder='little')
+            current_index += 1  
+        parsed_tables.import_address_table.clear()
+        parsed_tables.import_address_table.update(adjusted_import_address_table_entries)
 
     return cloned_data
 
