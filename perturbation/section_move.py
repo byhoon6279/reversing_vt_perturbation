@@ -399,7 +399,7 @@ def safe_disasm(data, va, size, mode):
             instructions = md.disasm(code, va + offset)
             instruction = next(instructions, None)
             if instruction is None:
-                print(f"No valid instruction found at offset {offset}, trying next byte...")
+                logging.info(f"No valid instruction found at offset {offset}, trying next byte...")
                 offset += 1
                 continue
                 
@@ -407,7 +407,7 @@ def safe_disasm(data, va, size, mode):
             offset += instruction.size
                 
         except capstone.CsError as e:
-            print(f"Capstone decoding error at offset {hex(va + offset)}: {str(e)}")
+            logging.info(f"Capstone decoding error at offset {hex(va + offset)}: {str(e)}")
             offset += 1
 
 
