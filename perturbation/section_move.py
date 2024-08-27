@@ -278,6 +278,15 @@ def is_ordinal(entry_value):
     return (entry_value & 0x80000000) != 0
 
 
+def find_section_by_name(pe, section_name):
+    for section in pe.sections:
+        decoded_name = section.Name.decode('utf-8').strip('\x00').strip()
+        if decoded_name == section_name.strip():
+            return section
+    logging.debug(f"Section {section_name} not found in PE sections.")
+    return None
+
+
 def restore_bound_import_directory(data: bytes, bound_import_data: bytes) -> bytes:
     pe = pefile.PE(data=data)
 
