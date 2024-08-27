@@ -66,8 +66,7 @@ def decode_utf16le_string(data, start):
     return ''.join(utf16le_str), end + 2  # 마지막 null 문자를 넘겨야 함
 
 def modify_data_sections(section_name = None, data = None , function_list = None):
-    section_names = [".rdata", ".idata", ".edata", ".rsrc", ".data", "data", "rdata", "idata", "edata", "rsrc"]
-
+    
     modified_data = bytearray(data)
     i = 0
     letters_set = (string.ascii_lowercase + string.digits) * 5
@@ -115,8 +114,6 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                 end = i
                 text = modified_data[start:end].decode('ascii', errors='ignore')                
                 txt_type = identify.tags_from_filename(text.strip())
-                
-                #print(f"Normal String Detected: {text}")
 
                 if ('.dll' in text.lower() and 'binary' in txt_type) or ('.dll' in text.lower()):
                     text = text.split('.')[0]
@@ -128,16 +125,8 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         modified_text = new_text.upper().encode('ascii')
                     modified_data[start:end] = modified_text
                     continue
-
-#                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type)\
-#                         or ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text)):
-#                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or (re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{3,}\b',text)):
-#                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or \
-#                         (re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) or re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text) and not re.findall(r'[-+,#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
-#                             ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text))\
-#                             or(re.findall( r'^(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$',text)):
         
-                elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or \
+                elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or \
                     ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) and not re.findall(r'[-+#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
                         ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text))\
                         or (re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}',text)) and (not re.findall(r'<[^>]+>', text) and not re.findall(r'=',text)):
@@ -183,10 +172,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
 
         except Exception as e:
             print(f"Error processing text: {text}, section {section_name}: {str(e)}")
-            #print(text, random_list, section_name)
-#             modified_text = modified_data[start:end]
-#             modified_text = bytes(modified_text)
-#             modified_data[start:end] = modified_text
+
             i = end  # i를 end로 설정하여 다음 블록으로 넘어가도록 함
             continue
 
@@ -216,8 +202,11 @@ def change_resource_case(file_path, output_path):
             
             if section_idx == 0:
                 modified_data += pe.header
-            
-            if section_name in [".rdata", ".idata", ".edata", ".rsrc", ".data", "data", "rdata", "idata", "edata", "rsrc"]:
+            :
+            if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+                section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
+                section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
+                
                 print(f"Processing section: {section_name}")
                 
                 section_start = section.PointerToRawData
@@ -258,11 +247,11 @@ def change_resource_case(file_path, output_path):
     
 if __name__ == "__main__":
     
-#     sample_dir = '../evaluation//clamav/adding_nop_100//'
-#     save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
+    sample_dir = '../evaluation//clamav/adding_nop_100/'
+    save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
     
-    sample_dir = '../sample/benign/'
-    save_dir = '../evaluation/perturbated_sample_benign/'
+#     sample_dir = '../sample/benign/'
+#     save_dir = '../evaluation/perturbated_sample_benign/'
     
     samples = list_files_by_size(sample_dir)
     create_directory(save_dir)
@@ -272,15 +261,15 @@ if __name__ == "__main__":
 #         if '620bae1ab9de6fa46fe9eae40169f00e74374d9df32bc87c1a6a2954a70a6dce_nop_fin_100' not in sample:
 #             continue
 
-        if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample): #or 'calc' not in sample:)
-            continue
+#         if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample): #or 'calc' not in sample:)
+#             continue
         try:   
             change_resource_case(sample_dir+sample, save_dir)
             print(f"Resource case changed for {sample}","\n")
-            print(sample_dir+sample, save_dir)
+            #print(sample_dir+sample, save_dir)
             
         except pefile.PEFormatError:
             continue
             
-        except ValueError: # 샘플 확인해서 해결해야함
+        except ValueError: # 샘플 확인 -> 현재는 ValueError 나는 샘플 없음
             continue
