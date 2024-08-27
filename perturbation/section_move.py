@@ -287,30 +287,41 @@ def find_section_by_name(pe, section_name):
     return None
 
 
+# 섹션 권한 결정 함수
+def determine_section_permissions(section):
+    return (PERM.EXEC if section.characteristics & 0x20000000 else 0) | \
+           (PERM.READ if section.characteristics & 0x40000000 else 0) | \
+           (PERM.WRITE if section.characteristics & 0x80000000 else 0)
+
+# fix this: offset -> rva
+def update_data_directory(restored_data, pe, padding_start, size):
+    data_directory_offset = (
+        pe.DOS_HEADER.e_lfanew
+        + 0x18  # PE Signature and File Header
+        + pe.FILE_HEADER.SizeOfOptionalHeader   # Optional Header Size
+        - 0x80  # Adjusting to the start of Data Directory
+        + pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT'] * 8  # Offset within Data Directory array
+    )
+    restored_data[data_directory_offset:data_directory_offset + 4] = struct.pack("<I", padding_start)
+    restored_data[data_directory_offset + 4:data_directory_offset + 8] = struct.pack("<I", size)
+
+# fix this: offset -> rva
 def restore_bound_import_directory(data: bytes, bound_import_data: bytes) -> bytes:
     pe = pefile.PE(data=data)
-
-    # Print the Bound Import Directory data to verify parsing
-    print(f"Restoring Bound Import Directory Data: {bound_import_data.hex()}")
-
-    # calculate the end of the last section header + padding
     section_table_offset = pe.DOS_HEADER.e_lfanew + 0x18 + pe.FILE_HEADER.SizeOfOptionalHeader
     section_count = pe.FILE_HEADER.NumberOfSections
     last_section_offset = section_table_offset + section_count * 0x28
     padding_start = last_section_offset
-
-    # calculate where the padding space ends, taking into account the FileAlignment
     padding_end = (padding_start + pe.OPTIONAL_HEADER.FileAlignment - 1) & ~(pe.OPTIONAL_HEADER.FileAlignment - 1)
 
-    # Ensure there's enough space in the padding area
     if len(bound_import_data) > (padding_end - padding_start):
         raise ValueError("Not enough space in padding area to restore BOUND IMPORT DIRECTORY.")
     
-    # Insert Bound Import Directory into the padding area
     restored_data = bytearray(data)
     for i in range(len(bound_import_data)):
         restored_data[padding_start + i] = bound_import_data[i]
 
+    logging.debug(f"padding start-end: {padding_start} - {padding_end}")
     pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].VirtualAddress = padding_start
     pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].Size = len(bound_import_data)
 
@@ -329,9 +340,52 @@ def restore_bound_import_directory(data: bytes, bound_import_data: bytes) -> byt
 
     # Verify that the data was correctly written to the new location
     written_data = restored_data[padding_start:padding_start + len(bound_import_data)]
-    print(f"Restored Bound Import Directory Data at new offset ({hex(padding_start)}): {written_data.hex()}")
+    logging.debug(f"Restored Bound Import Directory Data at new offset ({hex(padding_start)}): {written_data.hex()}")
 
     return bytes(restored_data)
+
+
+def backup_bound_import_directory(pe):
+    global bound_import_rva, bound_import_size, bound_import_data
+
+    directory_entry_bound_import = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']
+
+    if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > directory_entry_bound_import:
+        bound_import_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].VirtualAddress
+        bound_import_size= pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].Size
+
+        if bound_import_rva and bound_import_size:
+            bound_import_data = pe.get_memory_mapped_image()[bound_import_rva:bound_import_rva + bound_import_size]
+            logging.debug(f"Bound Import Directory: {hex(bound_import_rva)} {hex(bound_import_size)} {bound_import_data}")
+    else:
+        logging.warn(f"BOUND_IMPORT data directory NOT found")
+        bound_import_rva = 0
+        bound_import_size = 0
+        bound_import_data = bytes()
+
+
+def verify_bound_import_directory(cloned_section):
+    global bound_import_rva, bound_import_size, bound_import_data
+    pe = pefile.PE(data=cloned_section)
+    directory_entry_bound_import = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']
+
+    if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) > directory_entry_bound_import:
+        bound_import_rva_after = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].VirtualAddress
+        bound_import_size_after = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT']].Size
+
+        logging.debug(f"After adding section:\nBound Import Directory RVA: {hex(bound_import_rva_after)}, Size: {bound_import_size_after}")
+        
+        if bound_import_rva != bound_import_rva_after or bound_import_size != bound_import_size_after:
+            bound_import_data_after = pe.get_memory_mapped_image()[bound_import_rva_after:bound_import_rva_after + bound_import_size_after]
+            logging.debug(f"After adding section2:\nBound Import Directory Data: {bound_import_data_after.hex()}")
+            
+            if bound_import_data != bound_import_data_after:
+                if bound_import_data:
+                    return restore_bound_import_directory(cloned_section, bound_import_data)
+    else:
+        logging.warn(f"BOUND_IMPORT data directory entry not found in the modified PE.")
+    
+    return cloned_section
 
 
 def generate_random_string(length=8):
