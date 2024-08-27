@@ -774,5 +774,5 @@ if __name__ == "__main__":
             elif pe.OPTIONAL_HEADER.Magic == 0x20B:
                 # Fetch disassembled instructions for the destination section
                 instructions = get_disassembled_instructions(data=cloned_data, dst_section_name=cloned_name)
-
+                cloned_data = adjust_rip_relative_offsets(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name, instructions=instructions)
         open(dst_pefile, "wb").write(cloned_data)
