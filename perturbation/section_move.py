@@ -14,6 +14,11 @@ from add_section import *
 from dataclasses import dataclass, field
 from typing import Dict, List, Union
 
+import logging
+
+# Setup logging configuration
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
 @dataclass
 class ImportTableEntry:
     OriginalFirstThunk: int # Import Name Table's RVA
