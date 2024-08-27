@@ -461,6 +461,72 @@ def clone_section(data: bytes) -> bytes:
     return cloned_data, original_sections_info, cloned_sections_info
 
 
+def check_bitness(pe):
+    try:
+        if pe.OPTIONAL_HEADER.Magic == 0x108:
+            return str(32)
+        elif pe.OPTIONAL_HEADER.Magic == 0x20B:
+            return str(64)
+    except AttributeError:
+        return "Not a valid PE file"
+
+
+def calculate_rva_diff(pe, src_section_name, dst_section_name):
+    src_section = find_section_by_name(pe, src_section_name)
+    dst_section = find_section_by_name(pe, dst_section_name)
+
+    if not src_section or not dst_section:
+        raise ValueError(f"One of the sections {src_section_name}, {dst_section_name} not found")
+
+    rva_diff = dst_section.VirtualAddress - src_section.VirtualAddress
+    return rva_diff
+
+
+def clear_original_sections(data:bytes, original_sections: List[str]) -> bytes:
+    pe = pefile.PE(data=data)
+    cloned_data = bytearray(data)
+
+    for section_name in original_sections:
+        section = find_section_by_name(pe, section_name)
+        if section:
+            nop_area = bytes([0x90] * section.SizeOfRawData)
+            cloned_data[section.PointerToRawData:section.PointerToRawData + section.SizeOfRawData] = nop_area
+            logging.info(f"Cleared section {section_name} with NOPs.")
+    
+    return cloned_data
+
+def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: str) -> bytes:
+    pe = pefile.PE(data=data)
+    modified_data = bytearray(data)
+
+    # Locate the code section
+    entry_point_va = pe.OPTIONAL_HEADER.AddressOfEntryPoint
+    src_section = find_section_by_name(pe, src_section_name)
+    dst_section = find_section_by_name(pe, dst_section_name)
+
+    if not src_section or not dst_section:
+        raise ValueError(f"Section {src_section_name} or {dst_section_name} not found")
+
+    if not (src_section.VirtualAddress <= entry_point_va < src_section.VirtualAddress + src_section.Misc_VirtualSize):
+        logging.debug(f"Entry point 0x{entry_point_va:x} is not within the source section {src_section_name}")
+    
+    entrypoint_offset = entry_point_va - src_section.VirtualAddress
+    jump_destination_rva = dst_section.VirtualAddress + entrypoint_offset
+
+    # Construct the jump instruction to the new entry point
+    # For example, using a direct jump which is 5 bytes in x86 (E9 xx xx xx xx)
+    # Calculate the offset for the jump instruction
+    offset = jump_destination_rva - (src_section.VirtualAddress + entrypoint_offset + 5)
+    jump_instruction = b'\xE9' + offset.to_bytes(4, byteorder='little', signed=True)
+    
+    # Place the jump instruction at the start of the code section
+    entrypoint_raw = src_section.PointerToRawData + entrypoint_offset
+    modified_data[entrypoint_raw:entrypoint_raw + 5] = jump_instruction
+    logging.info(f"Inserted trampoline jump from {src_section_name} to {dst_section_name} at raw offset 0x{entrypoint_raw:x}.")
+
+    return modified_data
+
+
 def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     modifiable_data = bytearray(data)
@@ -504,44 +570,6 @@ def modify_reloc_section(data: bytes, text_section_name: str, new_section_name: 
         index += block_size
     
     return modifiable_data
-
-
-def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: str) -> bytes:
-    pe = pefile.PE(data=data)
-    # Locate the code section
-    text_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == src_section_name), None)
-    if text_section is None:
-        raise ValueError("No executable section found")
-        
-    inserted_data = bytearray(data)
-    
-    # Fill the code section with NOPs
-    nop_area = bytes([0x90] * text_section.SizeOfRawData)
-    inserted_data[text_section.PointerToRawData:text_section.PointerToRawData + text_section.SizeOfRawData] = nop_area
-    
-    # Locate the .newsection section
-    new_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == dst_section_name), None)
-    if new_section is None:
-        raise ValueError(f"No section named {dst_section_name} found")
-        
-    entry_point = pe.OPTIONAL_HEADER.AddressOfEntryPoint
-    text_section_start_va = text_section.VirtualAddress
-    entry_point_offset = entry_point - text_section_start_va
-    
-    # Calculate the relative virtual address (RVA) of the jump destination
-    jump_destination_rva = new_section.VirtualAddress + entry_point_offset
-
-    # Construct the jump instruction to the new entry point
-    # For example, using a direct jump which is 5 bytes in x86 (E9 xx xx xx xx)
-    # Calculate the offset for the jump instruction
-    offset = jump_destination_rva - (text_section.VirtualAddress + entry_point_offset + 5)
-    jump_instruction = b'\xE9' + offset.to_bytes(4, byteorder='little', signed=True)
-    
-    # Place the jump instruction at the start of the code section
-    text_section_entry_point_raw = text_section.PointerToRawData + entry_point_offset
-    inserted_data[text_section_entry_point_raw:text_section_entry_point_raw + 5] = jump_instruction
-    
-    return inserted_data
 
 
 def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_name: str, instructions):
