@@ -44,10 +44,33 @@ class ParsedImportTables:
     import_name_table: Dict[str, ImportNameTableEntry] = field(default_factory=dict)
     import_table_section_name: str = None
     import_address_table_section_name: str = None
-    
+
 bound_import_rva = 0
 bound_import_size = 0
 bound_import_data = 0
+
+@dataclass
+class SectionInfo:
+    name: str
+    virtual_address: int
+    virtual_size: int
+    raw_data_offset: int
+    raw_data_size: int
+    characteristics: int
+
+    @property
+    def section_start(self) -> int:
+        return self.virtual_address
+
+    @property
+    def section_end(self) -> int:
+        return self.virtual_address + max(self.virtual_size, self.raw_data_size)
+
+    @property
+    def is_executable(self) -> bool:
+        characteristics_be = int.from_bytes(self.characteristics.to_bytes(4, 'little'), 'big')
+        executable = (characteristics_be & 0x20000000) != 0
+        return executable
 
 @lru_cache(maxsize=None)
 def is_in_executable_section(pe, rva):
