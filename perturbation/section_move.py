@@ -73,13 +73,6 @@ class SectionInfo:
         return executable
 
 
-def is_in_executable_section(pe, rva):
-    for section in pe.sections:
-        if (section.VirtualAddress <= rva < section.VirtualAddress + section.Misc_VirtualSize) and (section.Characteristics & 0x20000000):
-            return True
-    return False
-
-
 def get_pe_sections(pe) -> list:
     sections = []
     for section in pe.sections:
