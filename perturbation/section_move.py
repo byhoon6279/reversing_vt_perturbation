@@ -717,53 +717,6 @@ def adjust_rip_relative_offsets(data: bytes, src_section_name: str, dst_section_
     return adjusted_data
 
 
-def rename_new_section(data: bytes, ori_section_name: str = None) -> bytes:
-    data = bytearray(data)
-
-    pe = pefile.PE(data=data)
-
-    # Find the index of the last section
-    last_section_index = len(pe.sections) - 1
-    
-    
-    for section_index, section in enumerate(pe.sections):
-        section_name = section.Name.decode().strip('\x00')
-        section_name = section_name.lower()
-        if section_name in ['.text', 'text', 'code','.code']:
-            last_section_index = section_index
-            break
-    
-    
-    # Get the name of the last section
-    new_section_name = pe.sections[last_section_index].Name.decode().strip('\x00')
-
-    # Change the name of the last section to a random string
-    random_section_name = '.Tram'#generate_random_string()
-    pe.sections[last_section_index].Name = random_section_name.encode("utf-8")[:8].ljust(8, b"\x00")
-    
-    section_table_offset = pe.DOS_HEADER.e_lfanew + 0x18 + pe.FILE_HEADER.SizeOfOptionalHeader
-    section_entry_offset = section_table_offset + last_section_index * 0x28
-    data[section_entry_offset: section_entry_offset + 8] = random_section_name.encode("utf-8")[:8].ljust(8, b"\x00")
-
-    for section_index, section in enumerate(pe.sections):
-        section_name = section.Name.decode().strip('\x00')
-        
-        if section_name == '.new':  
-            last_section_index = section_index
-            #print(last_section_index, section_name)
-            random_section_name = '.text'
-            pe.sections[last_section_index].Name = '.text'.encode("utf-8")[:8].ljust(8, b"\x00")
-            break 
-    
-    # Update the section header in the PE header
-    section_table_offset = pe.DOS_HEADER.e_lfanew + 0x18 + pe.FILE_HEADER.SizeOfOptionalHeader
-    section_entry_offset = section_table_offset + last_section_index * 0x28
-    data[section_entry_offset: section_entry_offset + 8] = random_section_name.encode("utf-8")[:8].ljust(8, b"\x00")
-    
-
-    return bytes(data)
-
-
 def list_files_by_size(directory):
     try:
         # Get list of files in the directory along with their sizes
