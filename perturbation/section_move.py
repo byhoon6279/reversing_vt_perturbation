@@ -748,7 +748,7 @@ if __name__ == "__main__":
         data = bytearray(open(src_pefile, "rb").read())
         pe = pefile.PE(data=data)
 
-        parsed_tables = check_import_tables_in_executable_section(pe)
+        parsed_tables = parse_import_tables(pe)
         cloned_data, original_sections, cloned_sections = clone_section(data)
         cloned_pe = pefile.PE(data=cloned_data)
         
