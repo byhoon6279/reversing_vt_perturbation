@@ -80,6 +80,20 @@ def is_in_executable_section(pe, rva):
     return False
 
 
+def get_pe_sections(pe) -> list:
+    sections = []
+    for section in pe.sections:
+        sections.append(SectionInfo(
+            name=section.Name.decode().strip('\x00'),
+            virtual_address=section.VirtualAddress,
+            virtual_size=section.Misc_VirtualSize,
+            raw_data_offset=section.PointerToRawData,
+            raw_data_size=section.SizeOfRawData,
+            characteristics=section.Characteristics
+        ))
+    return sections
+
+
 def parse_import_tables(pe) -> ParsedImportTables:
     sections = get_pe_sections(pe)
     parsed_tables = ParsedImportTables()
