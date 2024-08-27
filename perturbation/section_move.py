@@ -42,7 +42,9 @@ class ParsedImportTables:
     import_table: Dict[str, ImportTableEntry] = field(default_factory=dict)
     import_address_table: Dict[int, ImportAddressTableEntry] = field(default_factory=dict)
     import_name_table: Dict[str, ImportNameTableEntry] = field(default_factory=dict)
-
+    import_table_section_name: str = None
+    import_address_table_section_name: str = None
+    
 bound_import_rva = 0
 bound_import_size = 0
 bound_import_data = 0
