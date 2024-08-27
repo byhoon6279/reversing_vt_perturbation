@@ -388,10 +388,6 @@ def verify_bound_import_directory(cloned_section):
     return cloned_section
 
 
-def generate_random_string(length=8):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
-
-
 def safe_disasm(data, va, size, mode):
     md = capstone.Cs(capstone.CS_ARCH_X86, mode)
     md.detail = True
@@ -434,9 +430,6 @@ def get_disassembled_instructions(data, dst_section_name):
                                cs_mode )
     return instructions
 
-
-def hexify_byte_list(byte_list):
-    return ''.join(format(b, '02x') for b in byte_list)
 
 #def clone_section(data: bytes, new_section_name: str, clone_from_name: str) -> bytes:
 def clone_section(data: bytes, new_section_name: str) -> bytes:
