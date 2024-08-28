@@ -461,6 +461,7 @@ def clone_section(data: bytes) -> bytes:
 
         source_data = cloned_data[section.raw_data_offset:section.raw_data_offset + section.raw_data_size]
         source_perms = determine_section_permissions(section)
+        logging.debug(f"permission: {hex(source_perms)}")
         cloned_data = add_section(cloned_data, cloned_section_name, source_data, source_perms)
         cloned_data = verify_bound_import_directory(bytearray(cloned_data))
 
