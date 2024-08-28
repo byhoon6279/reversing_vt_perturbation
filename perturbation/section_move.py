@@ -292,9 +292,9 @@ def determine_section_permissions(section):
     return (PERM.CODE if section.characteristics & 0x00000020 else 0) | \
            (PERM.INITIALIZED_DATA if section.characteristics & 0x00000040 else 0) | \
            (PERM.UNINITIALIZED_DATA if section.characteristics & 0x00000080 else 0) | \
+           (PERM.LOCKED if section.characteristics & 0x00040000 else 0) | \
+           (PERM.PRELOAD if section.characteristics & 0x00080000 else 0) | \
            (PERM.DISCARDABLE if section.characteristics & 0x02000000 else 0) | \
-           (PERM.LOCKED if section.characteristics & 0x04000000 else 0) | \
-           (PERM.PRELOAD if section.characteristics & 0x08000000 else 0) | \
            (PERM.NONCACHED if section.characteristics & 0x04000000 else 0) | \
            (PERM.NONPAGED if section.characteristics & 0x08000000 else 0) | \
            (PERM.SHARED if section.characteristics & 0x10000000 else 0) | \
