@@ -65,7 +65,7 @@ def extend_section_table(data: bytes, extend_size: int) -> bytes:
 
 
 # Adds a new dummy section as the last section of the PE file
-def add_section(data: bytes, section_name: str, section_data: bytes = None, section_perm: int = PERM.READ | PERM.EXEC) -> bytes:
+def add_section(data: bytes, section_name: str, section_data: bytes = None, section_perm: int = PERM.READ | PERM.EXECUTE) -> bytes:
     data = extend_section_table(data, to_extend(data))
     data = bytearray(data)
 
@@ -109,10 +109,11 @@ def add_section(data: bytes, section_name: str, section_data: bytes = None, sect
     section_raw[32:34] = itob2(0)  # NumberOfRelocations
     section_raw[34:36] = itob2(0)  # NumberOfLinenumbers
 
-    if section_perm < 0 or section_perm > 15:
-        raise ValueError("Invalid Section Permission")
+    # if section_perm < 0 or section_perm > 15:
+    #     raise ValueError("Invalid Section Permission")
 
-    section_raw[36:40] = itob4(0x20 | section_perm << 28)  # Characteristics
+    # section_raw[36:40] = itob4(0x20 | section_perm << 28)  # Characteristics
+    section_raw[36:40] = itob4(0x20 | section_perm)  # Characteristics
 
     # Add new section header to PE section table
     section_offset = section_table_offset + (section_count * 0x28)

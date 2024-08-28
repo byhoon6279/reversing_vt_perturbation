@@ -298,7 +298,7 @@ def determine_section_permissions(section):
            (PERM.NONCACHED if section.characteristics & 0x04000000 else 0) | \
            (PERM.NONPAGED if section.characteristics & 0x08000000 else 0) | \
            (PERM.SHARED if section.characteristics & 0x10000000 else 0) | \
-           (PERM.EXEC if section.characteristics & 0x20000000 else 0) | \
+           (PERM.EXECUTE if section.characteristics & 0x20000000 else 0) | \
            (PERM.READ if section.characteristics & 0x40000000 else 0) | \
            (PERM.WRITE if section.characteristics & 0x80000000 else 0)
 
