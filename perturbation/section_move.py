@@ -87,6 +87,20 @@ def get_pe_sections(pe) -> list:
     return sections
 
 
+def section_to_info(section) -> SectionInfo:
+    """
+    Convert a SectionStructure object to SectionInfo.
+    """
+    return SectionInfo(
+        name=section.Name.decode().strip('\x00'),
+        virtual_address=section.VirtualAddress,
+        virtual_size=section.Misc_VirtualSize,
+        raw_data_offset=section.PointerToRawData,
+        raw_data_size=section.SizeOfRawData,
+        characteristics=section.Characteristics
+    )
+
+
 def parse_import_tables(pe) -> ParsedImportTables:
     sections = get_pe_sections(pe)
     parsed_tables = ParsedImportTables()
@@ -537,6 +551,67 @@ def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: 
     return modified_data
 
 
+def update_resource_directory(data: bytes, original_section_name: str, cloned_section_name: str) -> bytes:
+    """
+    Update the IMAGE_DIRECTORY_ENTRY_RESOURCE to point to the cloned section instead of the original.
+
+    Args:
+        data (bytes): The byte content of the PE file.
+        original_section_name (str): The name of the original section.
+        cloned_section_name (str): The name of the cloned section.
+
+    Returns:
+        bytes: The updated PE file content.
+    """
+    pe = pefile.PE(data=data)
+    modified_data = bytearray(data)
+
+    # Locate the resource directory entry
+    resource_directory_index = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_RESOURCE']
+    if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) < resource_directory_index:
+        logging.warning('RESOURCE_DIRECTORY Data Directory entry not found.')
+        return data
+    
+    # Get the RVA of the original resource directory
+    original_resource_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[resource_directory_index].VirtualAddress
+    if original_resource_rva == 0:
+        logging.warning('RESOURCE_DIRECTORY RVA is 0, no update needed.')
+        return data
+    
+    # Find the original and cloned sections
+    original_section = find_section_by_name(pe, original_section_name)
+    cloned_section = find_section_by_name(pe, cloned_section_name)
+
+    if not original_section or not cloned_section:
+        logging.error('Could not find the specified original or cloned section.')
+        return data
+    
+    # Find the original and cloned sections
+    original_section_info = section_to_info(original_section)
+    cloned_section_info = section_to_info(cloned_section)
+    
+    # Calculate the difference between the original and cloned section addresses
+    rva_diff = cloned_section_info.virtual_address - original_section_info.virtual_address
+
+    # Check if the resource directory is within the original section
+    if original_section_info.section_start <= original_resource_rva < original_section_info.section_end:
+        # Update the VirtualAddress to point to the new location in the cloned section
+        new_resource_rva = original_resource_rva + rva_diff
+        data_directory_offset = (
+            pe.DOS_HEADER.e_lfanew
+            + 0x18  # PE Signature and File Header
+            + pe.FILE_HEADER.SizeOfOptionalHeader   # Optional Header Size
+            - 0x80  # Adjusting to the start of Data Directory
+            + resource_directory_index * 8  # Offset within Data Directory array
+        )
+
+        # Update the VirtualAddress in the Data Directory
+        modified_data[data_directory_offset:data_directory_offset + 4] = struct.pack("<I", new_resource_rva)
+        logging.info(f'Updated IMAGE_DIRECTORY_ENTRY_RESOURCE to point to RVA: {hex(new_resource_rva)}')
+    
+    return modified_data
+
+
 def modify_reloc_section(data: bytes, src_section_name: str, dst_section_name: str) -> bytes:
     pe = pefile.PE(data=data)
     modifiable_data = bytearray(data)
@@ -763,6 +838,8 @@ if __name__ == "__main__":
         cloned_pe = pefile.PE(data=cloned_data)
         
         for original_name, cloned_name in zip(original_sections, cloned_sections):
+            cloned_data = update_resource_directory(cloned_data, original_name, cloned_name)
+
             rva_diff = calculate_rva_diff(cloned_pe, original_name, cloned_name)
 
             # Adjust the parsed tables with the offset difference
