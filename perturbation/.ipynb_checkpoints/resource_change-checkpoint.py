@@ -45,9 +45,28 @@ def get_exported_functions(pe):
 def is_printable(b):
     return 32 <= b < 127
 
-def modify_data_sections(section_name, data, function_list):
-    section_names = [".rdata", ".idata", ".edata", ".rsrc", ".data", "data", "rdata", "idata", "edata", "rsrc"]
+def is_utf16le_string(data, start):
+    """UTF-16 LE 문자열인지 확인"""
+    # UTF-16 LE 문자열은 각 문자 사이에 0x00이 있어야 합니다.
+    length = len(data)
+    for i in range(start, length, 2):
+        if i + 1 >= length or data[i+1] != 0x00:
+            return False
+        if data[i] == 0x00 and data[i+1] == 0x00:  # 문자열의 끝을 의미
+            break
+    return True
 
+def decode_utf16le_string(data, start):
+    """UTF-16 LE 문자열을 디코딩"""
+    end = start
+    utf16le_str = []
+    while end < len(data) and data[end] != 0x00:
+        utf16le_str.append(chr(data[end]))
+        end += 2  # 2바이트씩 증가
+    return ''.join(utf16le_str), end + 2  # 마지막 null 문자를 넘겨야 함
+
+def modify_data_sections(section_name = None, data = None , function_list = None):
+    
     modified_data = bytearray(data)
     i = 0
     letters_set = (string.ascii_lowercase + string.digits) * 5
@@ -59,8 +78,39 @@ def modify_data_sections(section_name, data, function_list):
         try:
             if is_printable(modified_data[i]):
                 start = i
+                
+                # UTF-16 LE 문자열인지 확인
+                if is_utf16le_string(modified_data, start):
+                    utf16_text, end = decode_utf16le_string(modified_data, start)
+                    
+                    #print(f"UTF-16 LE String Detected: {utf16_text}")
+                    
+                    if  ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',utf16_text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b', utf16_text) and re.findall(r'[^\w\s]', utf16_text) and not re.findall(r'[-+#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',utf16_text)) or \
+                        ('\\' in utf16_text and len(utf16_text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',utf16_text) and len(utf16_text)>5 and not re.findall(r'[0-9]+',utf16_text))\
+                        or (re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}',utf16_text)) and (not re.findall(r'<[^>]+>', utf16_text) and not re.findall(r'=',utf16_text)):
+                        
+                        #print(f"UTF-16 LE String Detected: {utf16_text}")
+                        # 5자 이상인 경우에만 대문자로 변환
+                        if len(modified_data[start:end]) <= len(letters_set):
+                            random_list = random.sample(letters_set, len(modified_data[start:end]))
+                        else:
+                            random_list = random.choices(letters_set, k=len(modified_data[start:end]))
+                    
+                        modified_text = ''.join(random_list)
+                        #print("  --> ",modified_text)
+                        modified_utf16_data = bytearray(modified_text.encode('utf-16le'))
+                    else:
+                        # 그렇지 않은 경우, 원래 데이터를 유지
+                        modified_utf16_data = modified_data[start:end]
+                    
+                    modified_data[start:end] = modified_utf16_data
+                    i = end
+                    continue
+                
+                
                 while i < len(modified_data) and is_printable(modified_data[i]):
                     i += 1
+                    
                 end = i
                 text = modified_data[start:end].decode('ascii', errors='ignore')                
                 txt_type = identify.tags_from_filename(text.strip())
@@ -75,19 +125,11 @@ def modify_data_sections(section_name, data, function_list):
                         modified_text = new_text.upper().encode('ascii')
                     modified_data[start:end] = modified_text
                     continue
-
-#                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type)\
-#                         or ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text)):
-#                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or (re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{3,}\b',text)):
-#                 elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or \
-#                         (re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) or re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text) and not re.findall(r'[-+,#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
-#                             ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text))\
-#                             or(re.findall( r'^(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$',text)):
         
-                elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or (section_name in section_names and txt_type) or \
-                    ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) and not re.findall(r'[-+,#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
+                elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or \
+                    ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) and not re.findall(r'[-+#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
                         ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text))\
-                        or (re.findall( r'^(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}$',text)):
+                        or (re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}',text)) and (not re.findall(r'<[^>]+>', text) and not re.findall(r'=',text)):
         
                     format_specifier = ''
             
@@ -130,13 +172,9 @@ def modify_data_sections(section_name, data, function_list):
 
         except Exception as e:
             print(f"Error processing text: {text}, section {section_name}: {str(e)}")
-            #print(text, random_list, section_name)
-#             modified_text = modified_data[start:end]
-#             modified_text = bytes(modified_text)
-#             modified_data[start:end] = modified_text
+
             i = end  # i를 end로 설정하여 다음 블록으로 넘어가도록 함
             continue
-
 
     print(f"Returning modified data for section: {section_name}")
     return bytes(modified_data)
@@ -164,9 +202,11 @@ def change_resource_case(file_path, output_path):
             
             if section_idx == 0:
                 modified_data += pe.header
-            
-            if section_name in [".rdata", ".idata", ".edata", ".rsrc", ".data", "data", "rdata", "idata", "edata", "rsrc"]:
-            #if section_name in [".rdata", ".idata", ".edata", ".rsrc", "rdata", "idata", "edata", "rsrc"]:
+
+            if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+                section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
+                section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
+                
                 print(f"Processing section: {section_name}")
                 
                 section_start = section.PointerToRawData
@@ -187,9 +227,13 @@ def change_resource_case(file_path, output_path):
                 section_data = pe_data[section_start:section_end]
                 modified_data += section_data
 
-        if pe_data[section_end:]:
-            last = pe_data[section_end:]
-            modified_data += last
+        # 오버레이 영역 검사
+        last_section_end = pe.sections[-1].PointerToRawData + pe.sections[-1].SizeOfRawData
+        if len(pe_data) > last_section_end:
+            overlay_data = pe_data[last_section_end:]
+            print("Overlay data detected and will be processed.")
+            modified_overlay_data = modify_data_sections("overlay", overlay_data, function_list)
+            modified_data += modified_overlay_data
 
     except Exception as e:
         print(f"Error in processing PE file: {str(e)}")
@@ -203,28 +247,29 @@ def change_resource_case(file_path, output_path):
     
 if __name__ == "__main__":
     
-#     sample_dir = '../evaluation//clamav/adding_nop_100//'
-#     save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
+    sample_dir = '../evaluation//clamav/adding_nop_100/'
+    save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
     
-    sample_dir = '../sample/benign/'
-    save_dir = '../evaluation/perturbated_sample_benign/'
+#     sample_dir = '../sample/benign/'
+#     save_dir = '../evaluation/perturbated_sample_benign/'
     
     samples = list_files_by_size(sample_dir)
     create_directory(save_dir)
 
     for sample in samples:
         
-#         if '26a9022148303f7cc2c95a782aa3b13b18f6af05b3d28a18e93754c8bc6b28e6_adding_100' not in sample:
+#         if '620bae1ab9de6fa46fe9eae40169f00e74374d9df32bc87c1a6a2954a70a6dce_nop_fin_100' not in sample:
 #             continue
 
-        if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample): #or 'calc' not in sample:)
-            continue
+#         if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample): #or 'calc' not in sample:)
+#             continue
         try:   
             change_resource_case(sample_dir+sample, save_dir)
             print(f"Resource case changed for {sample}","\n")
+            #print(sample_dir+sample, save_dir)
             
         except pefile.PEFormatError:
             continue
             
-        except ValueError: # 샘플 확인해서 해결해야함
+        except ValueError: # 샘플 확인 -> 현재는 ValueError 나는 샘플 없음
             continue

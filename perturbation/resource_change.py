@@ -202,7 +202,7 @@ def change_resource_case(file_path, output_path):
             
             if section_idx == 0:
                 modified_data += pe.header
-            :
+
             if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
                 section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
                 section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
