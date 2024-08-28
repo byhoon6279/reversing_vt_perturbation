@@ -772,7 +772,7 @@ if __name__ == "__main__":
 
         for original_name, cloned_name in zip(original_sections, cloned_sections):
             # Insert the Trampoline code for new entry point
-            insert_trampoline_code(cloned_data, original_name, cloned_name)
+            cloned_data = insert_trampoline_code(cloned_data, original_name, cloned_name)
                 
             # Modify the reloc section data
             cloned_data = modify_reloc_section(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name)
