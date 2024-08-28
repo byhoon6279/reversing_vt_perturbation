@@ -758,7 +758,7 @@ if __name__ == "__main__":
             # Adjust the parsed tables with the offset difference
             cloned_data = update_parsed_tables(cloned_data, cloned_pe, parsed_tables, original_name, rva_diff)
 
-        cleared_data = clear_original_sections(cloned_data, original_sections)
+        cloned_data = clear_original_sections(cloned_data, original_sections)
 
         for original_name, cloned_name in zip(original_sections, cloned_sections):
             # Insert the Trampoline code for new entry point
