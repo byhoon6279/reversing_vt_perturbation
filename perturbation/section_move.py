@@ -633,9 +633,9 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
     
     # Adjust data section with relative addressing pointing to dst_section
     for section in pe.sections:
-        if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] and \
-            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE'] and \
-            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']:
+        if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
+            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
             logging.debug(f"Scanning {section.Name.decode().strip()} for offsets pointing to {src_section_name}")
             file_offset_start = section.PointerToRawData
             file_offset_end = file_offset_start + section.SizeOfRawData
