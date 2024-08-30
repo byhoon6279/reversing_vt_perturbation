@@ -245,31 +245,103 @@ def change_resource_case(file_path, output_path):
 
     pe.close()
     
-if __name__ == "__main__":
+# if __name__ == "__main__":
     
-    sample_dir = '../evaluation//clamav/adding_nop_100/'
-    save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
+#     sample_dir = '../evaluation//clamav/adding_nop_100/'
+#     save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
     
-#     sample_dir = '../sample/benign/'
-#     save_dir = '../evaluation/perturbated_sample_benign/'
+# #     sample_dir = '../sample/benign/'
+# #     save_dir = '../evaluation/perturbated_sample_benign/'
     
-    samples = list_files_by_size(sample_dir)
-    create_directory(save_dir)
+#     samples = list_files_by_size(sample_dir)
+#     create_directory(save_dir)
 
-    for sample in samples:
+#     for sample in samples:
         
-#         if '620bae1ab9de6fa46fe9eae40169f00e74374d9df32bc87c1a6a2954a70a6dce_nop_fin_100' not in sample:
+# #         if '620bae1ab9de6fa46fe9eae40169f00e74374d9df32bc87c1a6a2954a70a6dce_nop_fin_100' not in sample:
+# #             continue
+
+# #         if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample): #or 'calc' not in sample:)
+# #             continue
+#         try:   
+#             change_resource_case(sample_dir+sample, save_dir)
+#             print(f"Resource case changed for {sample}","\n")
+#             #print(sample_dir+sample, save_dir)
+            
+#         except pefile.PEFormatError:
+#             continue
+            
+#         except ValueError: # 샘플 확인 -> 현재는 ValueError 나는 샘플 없음
 #             continue
 
-#         if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample): #or 'calc' not in sample:)
-#             continue
-        try:   
-            change_resource_case(sample_dir+sample, save_dir)
-            print(f"Resource case changed for {sample}","\n")
-            #print(sample_dir+sample, save_dir)
-            
-        except pefile.PEFormatError:
+#----------------------------------------------------multi_processing_main_function
+
+import os
+import multiprocessing
+from resource_change import *
+from common_function import *
+
+def process_sample(sample, root, save_dir):
+    input_filepath = os.path.join(root, sample)
+    try:
+        change_resource_case(input_filepath, save_dir)
+        print(f"Resource case changed for {sample}\n")
+    except pefile.PEFormatError:
+        pass
+    except ValueError:
+        pass
+
+def worker(input_queue):
+    while True:
+        task = input_queue.get()
+        if task is None:
+            break
+        sample, root, save_dir = task
+        process_sample(sample, root, save_dir)
+        input_queue.task_done()
+
+def main():
+    sample_dir = '../sample/labeling/'
+    save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
+    
+    # 작업 큐 생성
+    input_queue = multiprocessing.JoinableQueue()
+
+    # CPU 코어 수의 절반만 사용하도록 설정
+    num_processes = max(1, multiprocessing.cpu_count() // 5)
+
+    # 워커 프로세스 생성 및 시작
+    processes = []
+    for _ in range(num_processes):
+        p = multiprocessing.Process(target=worker, args=(input_queue,))
+        p.start()
+        processes.append(p)
+
+    for root, dirs, files in os.walk(sample_dir):
+        if 'ok' in root.lower().split(os.sep):  # 'OK' 디렉토리를 건너뛰기
             continue
             
-        except ValueError: # 샘플 확인 -> 현재는 ValueError 나는 샘플 없음
+        if len(files) <= 10:  # 파일이 10개 이하인 디렉토리는 건너뛰기
             continue
+        
+        save_dir = os.path.join(save_dir_base, os.path.basename(root))
+        create_directory(save_dir)
+        
+        for sample in files:
+            if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample):
+                continue
+            input_queue.put((sample, root, save_dir))
+
+    # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
+    input_queue.join()
+    for _ in range(num_processes):
+        input_queue.put(None)
+
+    # 워커 프로세스 종료
+    for p in processes:
+        p.join()
+
+    print("All tasks are completed.")
+
+if __name__ == '__main__':
+    main()

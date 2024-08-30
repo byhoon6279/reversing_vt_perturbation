@@ -196,21 +196,24 @@ def modify_rdata(save_dir, modified_address, fin=None):
     for section in pe.sections:
         section_name = section.Name.decode().strip('\x00').lower()
 
-        # .rdata 섹션을 찾음
-        if section_name in ['.data', '.rdata', 'data', 'const']:
-            rdata_section = section
-            rdata_start = section.VirtualAddress
-            rdata_end = rdata_start + section.Misc_VirtualSize
-            section_size = section.SizeOfRawData
-            section_start = section.PointerToRawData
-            data = bytearray(pe.get_memory_mapped_image()[rdata_start:rdata_start + section_size])
+        # .rdata 섹션을 찾음 -> 요기 수정했었음
+        if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
+            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
+            
+                rdata_section = section
+                rdata_start = section.VirtualAddress
+                rdata_end = rdata_start + section.Misc_VirtualSize
+                section_size = section.SizeOfRawData
+                section_start = section.PointerToRawData
+                data = bytearray(pe.get_memory_mapped_image()[rdata_start:rdata_start + section_size])
 
-        # .text 섹션을 권한 조건으로 찾음
-        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and \
-           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
-           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or \
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
-           not (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']) and b'.text' in section.Name.strip(b'\x00').lower():
+        # .text 섹션을 권한 조건으로 찾음           
+        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
+           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or 
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or \
+           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']))and b'.text' in section.Name.strip(b'\x00').lower():
+            
             text_section = section
             text_start = section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase
             text_end = text_start + section.Misc_VirtualSize
@@ -634,11 +637,11 @@ def make_new_text(file_path ,number_of_nop):
     
     for section in pe.sections:
         #if section.Name.strip(b'\x00') == b'.text' or section.Name.strip(b'\x00').upper() == b'CODE':
-        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and \
-           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
-           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or \
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
-           not (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']) and '.text' in str(section.Name.strip(b'\x00')):
+        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
+           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or 
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or \
+           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']))and b'.text' in section.Name.strip(b'\x00').lower():
+            
             old_nextPointer = section.PointerToRawData
             text_section = section
             
@@ -1249,52 +1252,57 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
     modify_rdata(save_dir, modified_address, fin = 1)
 
 #------------------------------------Single processing version main function--------------------------------------------------------   
-# if __name__ == '__main__':
+if __name__ == '__main__':
         
 #     sample_dir = '../sample/section_move_sample/'
 #     save_dir = '../sample/perturbated_sample/adding_nop/'
+
+    sample_dir = '../sample/section_move_benign_sample/'
+    #save_dir = '../sample/perturbated_sample/adding_nop/'
+    save_dir = sample_dir
     
             
-# #     sample_dir = '../evaluation/section_move_sample/'
-# #     save_dir = '../evaluation/perturbated_sample/adding_nop/'
+#     sample_dir = '../evaluation/section_move_sample/'
+#     save_dir = '../evaluation/perturbated_sample/adding_nop/'
     
-#     samples = list_files_by_size(sample_dir)
-#     create_directory(save_dir)
+    samples = list_files_by_size(sample_dir)
+    create_directory(save_dir)
     
-#     number_of_nop = 1
+    number_of_nop = 1
     
-#     for sample in samples:
-#         save_dir = '../sample/perturbated_sample/adding_nop/'
-#         #save_dir = '../evaluation/perturbated_sample/adding_nop/'
-#         if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
-#             continue
+    for sample in samples:
+        #save_dir = '../sample/perturbated_sample/adding_nop/'
+        save_dir = sample_dir
+        #save_dir = '../evaluation/perturbated_sample/adding_nop/'
+        if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
+            continue
 
 #         if '085c1a53091bf9c9ff15844c848200b119e74d11298f3caa57e285619bb4fa28.exe' not in sample:
-# #         if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample or 'Frombook_new.exe' in sample:
-# #         if 'hello_32_new.exe' not in sample:
-#             continue
+#         if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample or 'Frombook_new.exe' in sample:
+        if 'PEview.exe' not in sample:
+            continue
 
-#         file_path = sample_dir+sample
+        file_path = sample_dir+sample
 
-#         #print(file_path)
-#         try:  
-#             new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+        #print(file_path)
+        try:  
+            new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
             
-#             if new_text is None:
-#                 print(f"[+] Error : failed to make new_text section.") 
+            if new_text is None:
+                print(f"[+] Error : failed to make new_text section.") 
                 
-#             else:
-#                 print("modified text sections : ",len(new_text))
-#                 #print(new_text[0], '\n',new_text[1])
-#                 new_text = modify_headers(file_path, new_text)
-#                 save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
-#                 modify_tramp(save_dir, modified_address)
-#                 save_dir = modify_rdata(save_dir, modified_address)
-#                 valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
-#                 print("Done!!",sample)
+            else:
+                print("modified text sections : ",len(new_text))
+                #print(new_text[0], '\n',new_text[1])
+                new_text = modify_headers(file_path, new_text)
+                save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
+                modify_tramp(save_dir, modified_address)
+                save_dir = modify_rdata(save_dir, modified_address)
+                valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+                print("Done!!",sample)
                 
-#         except pefile.PEFormatError:
-#             continue 
+        except pefile.PEFormatError:
+            continue 
 
 
 #------------------------------------multi processing version main function--------------------------------------------------------
@@ -1501,81 +1509,82 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
 # if __name__ == '__main__':
 #     main()
 
-def process_sample(sample):
-    #sample_dir = '../evaluation/section_move_sample/'
-    #save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
+#------------------------------------------------------------------------------------
+# def process_sample(sample):
+#     #sample_dir = '../evaluation/section_move_sample/'
+#     #save_dir = '../evaluation/perturbated_sample/adding_nop_100/'
     
-    sample_dir = '../evaluation//clamav/resource_change_involve_data/'
-    save_dir = '../evaluation/clamav/resource_change+adding_nop_100/'
+#     sample_dir = '../evaluation//clamav/resource_change_involve_data/'
+#     save_dir = '../evaluation/clamav/resource_change+adding_nop_100/'
     
-    file_path = sample_dir + sample
+#     file_path = sample_dir + sample
     
-    number_of_nop = 100
+#     number_of_nop = 100
     
-    try:
-        new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+#     try:
+#         new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
 
-        if new_text is None:
-            print(f"[+] Error: failed to make new_text section for {sample}.") 
-            return
+#         if new_text is None:
+#             print(f"[+] Error: failed to make new_text section for {sample}.") 
+#             return
 
-        new_text = modify_headers(file_path, new_text)
-        save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
-        modify_tramp(save_dir, modified_address)
-        save_dir = modify_rdata(save_dir, modified_address)
-        valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
-        print(f"Done processing {sample}")
+#         new_text = modify_headers(file_path, new_text)
+#         save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
+#         modify_tramp(save_dir, modified_address)
+#         save_dir = modify_rdata(save_dir, modified_address)
+#         valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+#         print(f"Done processing {sample}")
         
-    except pefile.PEFormatError:
-        print(f"[+] PEFormatError: {sample}")
-        return
+#     except pefile.PEFormatError:
+#         print(f"[+] PEFormatError: {sample}")
+#         return
     
     
-def worker(input_queue):
-    while True:
-        sample = input_queue.get()
-        if sample is None:
-            break
-        process_sample(sample)
-        input_queue.task_done()
+# def worker(input_queue):
+#     while True:
+#         sample = input_queue.get()
+#         if sample is None:
+#             break
+#         process_sample(sample)
+#         input_queue.task_done()
 
-def main():
-    sample_dir = '../evaluation//clamav/resource_change_involve_data/'
-    save_dir = '../evaluation/clamav/resource_change+adding_nop_100/'
+# def main():
+#     sample_dir = '../evaluation//clamav/resource_change_involve_data/'
+#     save_dir = '../evaluation/clamav/resource_change+adding_nop_100/'
     
-    samples = list_files_by_size(sample_dir)
-    create_directory(save_dir)
+#     samples = list_files_by_size(sample_dir)
+#     create_directory(save_dir)
 
-    # 유효한 샘플만 필터링
-    samples = [sample for sample in samples if not any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip'])]
+#     # 유효한 샘플만 필터링
+#     samples = [sample for sample in samples if not any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip'])]
 
-    # 작업 큐 생성
-    input_queue = multiprocessing.JoinableQueue()
+#     # 작업 큐 생성
+#     input_queue = multiprocessing.JoinableQueue()
 
-    # CPU 코어 수의 절반만 사용하도록 설정
-    num_processes = max(1, multiprocessing.cpu_count() // 10)
+#     # CPU 코어 수의 절반만 사용하도록 설정
+#     num_processes = max(1, multiprocessing.cpu_count() // 10)
 
-    # 워커 프로세스 생성 및 시작
-    processes = []
-    for _ in range(num_processes):
-        p = multiprocessing.Process(target=worker, args=(input_queue,))
-        p.start()
-        processes.append(p)
+#     # 워커 프로세스 생성 및 시작
+#     processes = []
+#     for _ in range(num_processes):
+#         p = multiprocessing.Process(target=worker, args=(input_queue,))
+#         p.start()
+#         processes.append(p)
 
-    # 작업 큐에 작업 추가
-    for sample in samples:
-        input_queue.put(sample)
+#     # 작업 큐에 작업 추가
+#     for sample in samples:
+#         input_queue.put(sample)
 
-    # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
-    input_queue.join()
-    for _ in range(num_processes):
-        input_queue.put(None)
+#     # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
+#     input_queue.join()
+#     for _ in range(num_processes):
+#         input_queue.put(None)
 
-    # 워커 프로세스 종료
-    for p in processes:
-        p.join()
+#     # 워커 프로세스 종료
+#     for p in processes:
+#         p.join()
 
-    print("All tasks are completed.")
+#     print("All tasks are completed.")
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()

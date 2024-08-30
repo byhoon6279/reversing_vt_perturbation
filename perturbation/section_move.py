@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Union
 
 import logging
+import multiprocessing
 
 # Setup logging configuration
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -86,6 +87,20 @@ def get_pe_sections(pe) -> list:
             characteristics=section.Characteristics
         ))
     return sections
+
+
+def section_to_info(section) -> SectionInfo:
+    """
+    Convert a SectionStructure object to SectionInfo.
+    """
+    return SectionInfo(
+        name=section.Name.decode().strip('\x00'),
+        virtual_address=section.VirtualAddress,
+        virtual_size=section.Misc_VirtualSize,
+        raw_data_offset=section.PointerToRawData,
+        raw_data_size=section.SizeOfRawData,
+        characteristics=section.Characteristics
+    )
 
 
 def parse_import_tables(pe) -> ParsedImportTables:
@@ -290,7 +305,16 @@ def find_section_by_name(pe, section_name):
 
 # 섹션 권한 결정 함수
 def determine_section_permissions(section):
-    return (PERM.EXEC if section.characteristics & 0x20000000 else 0) | \
+    return (PERM.CODE if section.characteristics & 0x00000020 else 0) | \
+           (PERM.INITIALIZED_DATA if section.characteristics & 0x00000040 else 0) | \
+           (PERM.UNINITIALIZED_DATA if section.characteristics & 0x00000080 else 0) | \
+           (PERM.LOCKED if section.characteristics & 0x00040000 else 0) | \
+           (PERM.PRELOAD if section.characteristics & 0x00080000 else 0) | \
+           (PERM.DISCARDABLE if section.characteristics & 0x02000000 else 0) | \
+           (PERM.NONCACHED if section.characteristics & 0x04000000 else 0) | \
+           (PERM.NONPAGED if section.characteristics & 0x08000000 else 0) | \
+           (PERM.SHARED if section.characteristics & 0x10000000 else 0) | \
+           (PERM.EXECUTE if section.characteristics & 0x20000000 else 0) | \
            (PERM.READ if section.characteristics & 0x40000000 else 0) | \
            (PERM.WRITE if section.characteristics & 0x80000000 else 0)
 
@@ -453,6 +477,7 @@ def clone_section(data: bytes) -> bytes:
 
         source_data = cloned_data[section.raw_data_offset:section.raw_data_offset + section.raw_data_size]
         source_perms = determine_section_permissions(section)
+        logging.debug(f"permission: {hex(source_perms)}")
         cloned_data = add_section(cloned_data, cloned_section_name, source_data, source_perms)
         cloned_data = verify_bound_import_directory(bytearray(cloned_data))
 
@@ -528,47 +553,111 @@ def insert_trampoline_code(data: bytes, src_section_name:str, dst_section_name: 
     return modified_data
 
 
-def modify_reloc_section(data: bytes, src_section_name: str, dst_section_name: str) -> bytes:
+def update_resource_directory(data: bytes, original_section_name: str, cloned_section_name: str) -> bytes:
+    """
+    Update the IMAGE_DIRECTORY_ENTRY_RESOURCE to point to the cloned section instead of the original.
+
+    Args:
+        data (bytes): The byte content of the PE file.
+        original_section_name (str): The name of the original section.
+        cloned_section_name (str): The name of the cloned section.
+
+    Returns:
+        bytes: The updated PE file content.
+    """
     pe = pefile.PE(data=data)
-    modifiable_data = bytearray(data)
-    
-    # Locate the code section to find its VirtualAddress
-    text_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == src_section_name), None)
-    
-    if text_section is None:
-        raise ValueError(f"No section named {src_section_name} found")
-    text_va = text_section.VirtualAddress
-    
-    # Locate the new section to get its VirtualAddress
-    new_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == dst_section_name), None)
-    if new_section is None:
-        raise ValueError(f"No section named {dst_section_name} found")
-    new_va = new_section.VirtualAddress
-    
-    # Locate the .reloc section
-    reloc_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == '.reloc'), None)
-    if reloc_section is None:
-        # raise ValueError('No .reloc section found')
-        return modifiable_data
+    modified_data = bytearray(data)
 
-    reloc_data = modifiable_data[reloc_section.PointerToRawData:reloc_section.PointerToRawData + reloc_section.SizeOfRawData]
-    # Check if the first entry in the .reloc section matches the VirtualAddress of the code section
-    # How to find the RelocTable? NT_HEADER - Optional Header - DataDirArray - BaseRelocationTable.VirtualAddress & Size
-    # How to parse the RelocTable? RelocTable - BaseReloc[index].VirtualAddress & SizeOfBlock
-    # BaseReloc[i+1]'s VA is BaseReloc[i].VirtualAddress + BaseReloc[i].SizeOfBlock
+    # Locate the resource directory entry
+    resource_directory_index = pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_RESOURCE']
+    if len(pe.OPTIONAL_HEADER.DATA_DIRECTORY) < resource_directory_index:
+        logging.warning('RESOURCE_DIRECTORY Data Directory entry not found.')
+        return data
     
-    index = 0
-    while index < len(reloc_data):
-        reloc_va = int.from_bytes(reloc_data[index:index + 4], 'little')
-        block_size = int.from_bytes(reloc_data[index + 4:index + 8], 'little')
-        
-        if block_size == 0:
-            break
+    # Get the RVA of the original resource directory
+    original_resource_rva = pe.OPTIONAL_HEADER.DATA_DIRECTORY[resource_directory_index].VirtualAddress
+    if original_resource_rva == 0:
+        logging.warning('RESOURCE_DIRECTORY RVA is 0, no update needed.')
+        return data
+    
+    # Find the original and cloned sections
+    original_section = find_section_by_name(pe, original_section_name)
+    cloned_section = find_section_by_name(pe, cloned_section_name)
 
-        if reloc_va == text_va:
-            modifiable_data[reloc_section.PointerToRawData + index:reloc_section.PointerToRawData + index + 4] = new_va.to_bytes(4, 'little')
+    if not original_section or not cloned_section:
+        logging.error('Could not find the specified original or cloned section.')
+        return data
+    
+    # Find the original and cloned sections
+    original_section_info = section_to_info(original_section)
+    cloned_section_info = section_to_info(cloned_section)
+    
+    # Calculate the difference between the original and cloned section addresses
+    rva_diff = cloned_section_info.virtual_address - original_section_info.virtual_address
 
-        index += block_size
+    # Check if the resource directory is within the original section
+    if original_section_info.section_start <= original_resource_rva < original_section_info.section_end:
+        # Update the VirtualAddress to point to the new location in the cloned section
+        new_resource_rva = original_resource_rva + rva_diff
+        data_directory_offset = (
+            pe.DOS_HEADER.e_lfanew
+            + 0x18  # PE Signature and File Header
+            + pe.FILE_HEADER.SizeOfOptionalHeader   # Optional Header Size
+            - 0x80  # Adjusting to the start of Data Directory
+            + resource_directory_index * 8  # Offset within Data Directory array
+        )
+
+        # Update the VirtualAddress in the Data Directory
+        modified_data[data_directory_offset:data_directory_offset + 4] = struct.pack("<I", new_resource_rva)
+        logging.info(f'Updated IMAGE_DIRECTORY_ENTRY_RESOURCE to point to RVA: {hex(new_resource_rva)}')
+    
+    return modified_data
+
+
+def modify_reloc_section(data: bytes, src_section_name: str, dst_section_name: str) -> bytes:
+    try:
+        pe = pefile.PE(data=data)
+        modifiable_data = bytearray(data)
+
+        # Locate the code section to find its VirtualAddress
+        text_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == src_section_name), None)
+
+        if text_section is None:
+            raise ValueError(f"No section named {src_section_name} found")
+        text_va = text_section.VirtualAddress
+
+        # Locate the new section to get its VirtualAddress
+        new_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == dst_section_name), None)
+        if new_section is None:
+            raise ValueError(f"No section named {dst_section_name} found")
+        new_va = new_section.VirtualAddress
+
+        # Locate the .reloc section
+        reloc_section = next((section for section in pe.sections if section.Name.decode('utf-8').rstrip('\x00') == '.reloc'), None)
+        if reloc_section is None:
+            # raise ValueError('No .reloc section found')
+            return modifiable_data
+
+        reloc_data = modifiable_data[reloc_section.PointerToRawData:reloc_section.PointerToRawData + reloc_section.SizeOfRawData]
+        # Check if the first entry in the .reloc section matches the VirtualAddress of the code section
+        # How to find the RelocTable? NT_HEADER - Optional Header - DataDirArray - BaseRelocationTable.VirtualAddress & Size
+        # How to parse the RelocTable? RelocTable - BaseReloc[index].VirtualAddress & SizeOfBlock
+        # BaseReloc[i+1]'s VA is BaseReloc[i].VirtualAddress + BaseReloc[i].SizeOfBlock
+
+        index = 0
+        while index < len(reloc_data):
+            reloc_va = int.from_bytes(reloc_data[index:index + 4], 'little')
+            block_size = int.from_bytes(reloc_data[index + 4:index + 8], 'little')
+
+            if block_size == 0:
+                break
+
+            if reloc_va == text_va:
+                modifiable_data[reloc_section.PointerToRawData + index:reloc_section.PointerToRawData + index + 4] = new_va.to_bytes(4, 'little')
+
+            index += block_size
+    except:
+        pass
     
     return modifiable_data
 
@@ -625,9 +714,9 @@ def adjust_instruction_offsets(data: bytes, src_section_name: str, dst_section_n
     
     # Adjust data section with relative addressing pointing to dst_section
     for section in pe.sections:
-        if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] and \
-            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE'] and \
-            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']:
+        if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
+            section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
             logging.debug(f"Scanning {section.Name.decode().strip()} for offsets pointing to {src_section_name}")
             file_offset_start = section.PointerToRawData
             file_offset_end = file_offset_start + section.SizeOfRawData
@@ -730,58 +819,206 @@ def list_files_by_size(directory):
         
     except Exception as e:
         print(f"Error: {e}")
+
         
 def rename_new_section(data: bytes, ori_section_name: str = None) -> bytes:
-    data = bytearray(data)
+    try:
+        data = bytearray(data)
 
-    pe = pefile.PE(data=data)
+        pe = pefile.PE(data=data)
 
-    for section_index, section in enumerate(pe.sections):
-        section_name = section.Name.decode().strip('\x00')
-        section_name = section_name.lower()
+        for section_index, section in enumerate(pe.sections):
+            section_name = section.Name.decode().strip('\x00')
+            section_name = section_name.lower()
 
-        # .text 섹션을 권한 조건으로 찾음
-        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and \
-           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
-           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or \
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
-           not (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']):
-            
-            print(section_index, section_name)
-            
-            if 'clone' not in section_name:
-                new_section_name = '.Tram'+str(section_index)
-                
-            elif 'clone' in section_name:
-                number = section_name.replace('.clone','')
-                new_section_name = '.text'+number
+            # .text 섹션을 권한 조건으로 찾음
+            if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and \
+               (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
+               ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or \
+                (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
+               not (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']) and \
+                not (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+                    section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
+                    section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']):
 
-            pe.sections[section_index].Name = new_section_name.encode("utf-8")[:8].ljust(8, b"\x00")
+               # print(section_index, section_name)
+                print(f"Section: {section_name}")
+                print(f"Characteristics: {section.Characteristics:#010x}")
 
-            # Update the section header in the PE header
-            section_table_offset = pe.DOS_HEADER.e_lfanew + 0x18 + pe.FILE_HEADER.SizeOfOptionalHeader
-            section_entry_offset = section_table_offset + section_index * 0x28
-            data[section_entry_offset: section_entry_offset + 8] = new_section_name.encode("utf-8")[:8].ljust(8, b"\x00")
+                # 캐릭터리스틱 출력
+                for characteristic_name in pefile.SECTION_CHARACTERISTICS:
+                    characteristic_value = pefile.SECTION_CHARACTERISTICS[characteristic_name]
+                    if isinstance(characteristic_value, int):  # Ensure the characteristic_value is an int
+                        if section.Characteristics & characteristic_value:
+                            print(f" - {characteristic_name} ({characteristic_value:#010x})")
+
+                print('-' * 50)  # 섹션 간 구분선 출력
+
+                if 'clone' not in section_name:
+                    new_section_name = '.Tram'+str(section_index)
+
+                elif 'clone' in section_name:
+                    number = section_name.replace('.clone','')
+                    new_section_name = '.text'+number
+
+                pe.sections[section_index].Name = new_section_name.encode("utf-8")[:8].ljust(8, b"\x00")
+
+                # Update the section header in the PE header
+                section_table_offset = pe.DOS_HEADER.e_lfanew + 0x18 + pe.FILE_HEADER.SizeOfOptionalHeader
+                section_entry_offset = section_table_offset + section_index * 0x28
+                data[section_entry_offset: section_entry_offset + 8] = new_section_name.encode("utf-8")[:8].ljust(8, b"\x00")
+    except:
+        pass
 
     return bytes(data)
 
-if __name__ == "__main__":
-    #src_dir = "../sample/input_sample/"
-    #dst_dir = "../sample/section_move_sample/"
+# if __name__ == "__main__":
+# #     src_dir = "../sample/input_sample/"
+# #     dst_dir = "../sample/section_move_sample/"
     
-    src_dir = "../sample/benign/"
-    dst_dir = "../sample/section_move_benign_sample/"
+#     src_dir = "../sample/benign/"
+#     dst_dir = "../sample/section_move_benign_sample/"
 
-    sample_dir = list_files_by_size(src_dir)
-    create_directory(dst_dir)
+#     sample_dir = list_files_by_size(src_dir)
+#     create_directory(dst_dir)
     
 
-    for sample in sample_dir:    
-        if '.ipynb' in sample or 'section_move' in sample:
-            continue
+#     for sample in sample_dir:    
+#         if '.ipynb' in sample or 'section_move' in sample:
+#             continue
+            
+#         if 'PEview.exe' not in sample:
+#             continue
         
-        src_pefile = src_dir + sample
-        dst_pefile = dst_dir + sample
+#         src_pefile = src_dir + sample
+#         dst_pefile = dst_dir + sample
+
+#         logging.info(f'Analysis Start: {sample}')
+
+#         data = bytearray(open(src_pefile, "rb").read())
+#         pe = pefile.PE(data=data)
+
+#         parsed_tables = parse_import_tables(pe)
+#         cloned_data, original_sections, cloned_sections = clone_section(data)
+#         cloned_pe = pefile.PE(data=cloned_data)
+        
+#         for original_name, cloned_name in zip(original_sections, cloned_sections):
+#             cloned_data = update_resource_directory(cloned_data, original_name, cloned_name)
+
+#             rva_diff = calculate_rva_diff(cloned_pe, original_name, cloned_name)
+
+#             # Adjust the parsed tables with the offset difference
+#             cloned_data = update_parsed_tables(cloned_data, cloned_pe, parsed_tables, original_name, rva_diff)
+
+#         cloned_data = clear_original_sections(cloned_data, original_sections)
+
+#         for original_name, cloned_name in zip(original_sections, cloned_sections):
+#             # Insert the Trampoline code for new entry point
+#             cloned_data = insert_trampoline_code(cloned_data, original_name, cloned_name)
+                
+#             # Modify the reloc section data
+#             cloned_data = modify_reloc_section(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name)
+
+#             if pe.OPTIONAL_HEADER.Magic == 0x108:
+#                 # Fetch disassembled instructions for the destination section
+#                 instructions = get_disassembled_instructions(data=cloned_data, dst_section_name=cloned_name)
+#                 cloned_data = adjust_instruction_offsets(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name, instructions=instructions)
+#             elif pe.OPTIONAL_HEADER.Magic == 0x20B:
+#                 # Fetch disassembled instructions for the destination section
+#                 instructions = get_disassembled_instructions(data=cloned_data, dst_section_name=cloned_name)
+#                 cloned_data = adjust_rip_relative_offsets(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name, instructions=instructions)
+                
+#         #section_name_change
+#         cloned_data = rename_new_section(cloned_data)
+        
+        
+#         open(dst_pefile, "wb").write(cloned_data)
+        
+#---------------------------------------------------------------------------------------
+#labeling_sample_version
+# if __name__ == "__main__":
+# #     src_dir = "../sample/input_sample/"
+# #     dst_dir = "../sample/section_move_sample/"
+    
+#     src_dir = '../sample/labeling/'
+#     ori_dst_dir = '../sample/perturbated_labling_sample/section_move/'
+
+# #    sample_dir = list_files_by_size(src_dir)
+#     create_directory(ori_dst_dir)
+    
+#     for root, dirs, files in os.walk(src_dir):
+#         # 'OK' 디렉토리가 있는 경우 건너뛰기
+#         if 'ok' in root.split(os.sep):
+#             continue
+            
+#         if len(files)<=10:
+#             continue
+            
+#         print(ori_dst_dir+root.split('/')[-1])
+        
+#         samples = list_files_by_size(root)
+#         create_directory(ori_dst_dir+root.split('/')[-1])
+        
+#         dst_dir = ori_dst_dir+root.split('/')[-1]
+        
+#         for sample in samples:    
+#             if '.ipynb' in sample or 'section_move' in sample:
+#                 continue
+
+
+#             src_pefile = root+'/'+sample#src_dir + sample
+#             print(src_pefile)
+            
+#             dst_pefile = dst_dir +'/'+ sample
+#             print(dst_pefile)
+
+#             logging.info(f'Analysis Start: {sample}')
+
+#             data = bytearray(open(src_pefile, "rb").read())
+#             pe = pefile.PE(data=data)
+
+#             parsed_tables = parse_import_tables(pe)
+#             cloned_data, original_sections, cloned_sections = clone_section(data)
+#             cloned_pe = pefile.PE(data=cloned_data)
+
+#             for original_name, cloned_name in zip(original_sections, cloned_sections):
+#                 cloned_data = update_resource_directory(cloned_data, original_name, cloned_name)
+
+#                 rva_diff = calculate_rva_diff(cloned_pe, original_name, cloned_name)
+
+#                 # Adjust the parsed tables with the offset difference
+#                 cloned_data = update_parsed_tables(cloned_data, cloned_pe, parsed_tables, original_name, rva_diff)
+
+#             cloned_data = clear_original_sections(cloned_data, original_sections)
+
+#             for original_name, cloned_name in zip(original_sections, cloned_sections):
+#                 # Insert the Trampoline code for new entry point
+#                 cloned_data = insert_trampoline_code(cloned_data, original_name, cloned_name)
+
+#                 # Modify the reloc section data
+#                 cloned_data = modify_reloc_section(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name)
+
+#                 if pe.OPTIONAL_HEADER.Magic == 0x108:
+#                     # Fetch disassembled instructions for the destination section
+#                     instructions = get_disassembled_instructions(data=cloned_data, dst_section_name=cloned_name)
+#                     cloned_data = adjust_instruction_offsets(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name, instructions=instructions)
+#                 elif pe.OPTIONAL_HEADER.Magic == 0x20B:
+#                     # Fetch disassembled instructions for the destination section
+#                     instructions = get_disassembled_instructions(data=cloned_data, dst_section_name=cloned_name)
+#                     cloned_data = adjust_rip_relative_offsets(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name, instructions=instructions)
+
+#             #section_name_change
+#             cloned_data = rename_new_section(cloned_data)
+
+
+#             open(dst_pefile, "wb").write(cloned_data)
+
+#labeling_sample_multi_processing_version
+
+def process_sample(sample, root, dst_dir):
+    try:
+        src_pefile = os.path.join(root, sample)
+        dst_pefile = os.path.join(dst_dir, sample)
 
         logging.info(f'Analysis Start: {sample}')
 
@@ -791,8 +1028,9 @@ if __name__ == "__main__":
         parsed_tables = parse_import_tables(pe)
         cloned_data, original_sections, cloned_sections = clone_section(data)
         cloned_pe = pefile.PE(data=cloned_data)
-        
+
         for original_name, cloned_name in zip(original_sections, cloned_sections):
+            cloned_data = update_resource_directory(cloned_data, original_name, cloned_name)
             rva_diff = calculate_rva_diff(cloned_pe, original_name, cloned_name)
 
             # Adjust the parsed tables with the offset difference
@@ -802,23 +1040,76 @@ if __name__ == "__main__":
 
         for original_name, cloned_name in zip(original_sections, cloned_sections):
             # Insert the Trampoline code for new entry point
-            insert_trampoline_code(cloned_data, original_name, cloned_name)
-                
-            # Modify the reloc section data
+            cloned_data = insert_trampoline_code(cloned_data, original_name, cloned_name)
             cloned_data = modify_reloc_section(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name)
 
             if pe.OPTIONAL_HEADER.Magic == 0x108:
-                # Fetch disassembled instructions for the destination section
                 instructions = get_disassembled_instructions(data=cloned_data, dst_section_name=cloned_name)
                 cloned_data = adjust_instruction_offsets(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name, instructions=instructions)
             elif pe.OPTIONAL_HEADER.Magic == 0x20B:
-                # Fetch disassembled instructions for the destination section
                 instructions = get_disassembled_instructions(data=cloned_data, dst_section_name=cloned_name)
                 cloned_data = adjust_rip_relative_offsets(data=cloned_data, src_section_name=original_name, dst_section_name=cloned_name, instructions=instructions)
-                
-        #section_name_change
-        cloned_data = rename_new_section(cloned_data)
-        
-        
-        open(dst_pefile, "wb").write(cloned_data)
-        
+    except:
+        pass
+
+    # Section name change
+    cloned_data = rename_new_section(cloned_data)
+
+    open(dst_pefile, "wb").write(cloned_data)
+
+def worker(input_queue):
+    while True:
+        task = input_queue.get()
+        if task is None:
+            break
+        sample, root, dst_dir = task
+        process_sample(sample, root, dst_dir)
+        input_queue.task_done()
+
+def main():
+    src_dir = '../sample/labeling/'
+    ori_dst_dir = '../sample/perturbated_labling_sample/section_move/'
+
+    create_directory(ori_dst_dir)
+    
+    # 작업 큐 생성
+    input_queue = multiprocessing.JoinableQueue()
+
+    # CPU 코어 수의 절반만 사용하도록 설정
+    num_processes = max(1, multiprocessing.cpu_count() // 5)
+
+    # 워커 프로세스 생성 및 시작
+    processes = []
+    for _ in range(num_processes):
+        p = multiprocessing.Process(target=worker, args=(input_queue,))
+        p.start()
+        processes.append(p)
+
+    for root, dirs, files in os.walk(src_dir):
+        if 'ok' in root.lower().split(os.sep):  # 'OK' 디렉토리를 건너뛰기
+            continue
+
+        if len(files) <= 10:  # 파일이 10개 이하인 디렉토리는 건너뛰기
+            continue
+
+        dst_dir = os.path.join(ori_dst_dir, os.path.basename(root))
+        create_directory(dst_dir)
+
+        for sample in files:
+            if '.ipynb' in sample or 'section_move' in sample:
+                continue
+            input_queue.put((sample, root, dst_dir))
+
+    # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
+    input_queue.join()
+    for _ in range(num_processes):
+        input_queue.put(None)
+
+    # 워커 프로세스 종료
+    for p in processes:
+        p.join()
+
+    print("All tasks are completed.")
+
+if __name__ == '__main__':
+    main()

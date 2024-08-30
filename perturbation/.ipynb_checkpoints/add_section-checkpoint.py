@@ -6,10 +6,18 @@ from enum import IntEnum
 
 
 class PERM(IntEnum):
-    SHARED = 0b0001
-    EXEC   = 0b0010
-    READ   = 0b0100
-    WRITE  = 0b1000
+    CODE = 0x00000020       # IMAGE_SCN_CNT_CODE
+    INITIALIZED_DATA = 0x00000040  # IMAGE_SCN_CNT_INITIALIZED_DATA
+    UNINITIALIZED_DATA = 0x00000080  # IMAGE_SCN_CNT_UNINITIALIZED_DATA
+    LOCKED = 0x00040000         # IMAGE_SCN_MEM_LOCKED
+    PRELOAD = 0x00080000        # IMAGE_SCN_MEM_PRELOAD
+    DISCARDABLE = 0x02000000  # IMAGE_SCN_CNT_DISCARDABLE
+    NONCACHED = 0x04000000      # IMAGE_SCN_MEM_NOT_CACHED
+    NONPAGED = 0x08000000       # IMAGE_SCN_MEM_NOT_PAGED
+    SHARED = 0x10000000     # IMAGE_SCN_MEM_SHARED
+    EXECUTE = 0x20000000        # IMAGE_SCN_MEM_EXECUTE
+    READ = 0x40000000       # IMAGE_SCN_MEM_READ
+    WRITE = 0x80000000      # IMAGE_SCN_MEM_WRITE
 
 
 def btoi(data: bytes) -> int:
@@ -57,7 +65,7 @@ def extend_section_table(data: bytes, extend_size: int) -> bytes:
 
 
 # Adds a new dummy section as the last section of the PE file
-def add_section(data: bytes, section_name: str, section_data: bytes = None, section_perm: int = PERM.READ | PERM.EXEC) -> bytes:
+def add_section(data: bytes, section_name: str, section_data: bytes = None, section_perm: int = PERM.READ | PERM.EXECUTE) -> bytes:
     data = extend_section_table(data, to_extend(data))
     data = bytearray(data)
 
@@ -101,10 +109,11 @@ def add_section(data: bytes, section_name: str, section_data: bytes = None, sect
     section_raw[32:34] = itob2(0)  # NumberOfRelocations
     section_raw[34:36] = itob2(0)  # NumberOfLinenumbers
 
-    if section_perm < 0 or section_perm > 15:
-        raise ValueError("Invalid Section Permission")
+    # if section_perm < 0 or section_perm > 15:
+    #     raise ValueError("Invalid Section Permission")
 
-    section_raw[36:40] = itob4(0x20 | section_perm << 28)  # Characteristics
+    # section_raw[36:40] = itob4(0x20 | section_perm << 28)  # Characteristics
+    section_raw[36:40] = itob4(0x20 | section_perm)  # Characteristics
 
     # Add new section header to PE section table
     section_offset = section_table_offset + (section_count * 0x28)
