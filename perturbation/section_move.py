@@ -1096,7 +1096,7 @@ def main():
         create_directory(dst_dir)
 
         for sample in files:
-            if '.ipynb' in sample or 'section_move' in sample:
+            if '.ipynb' in sample or 'section_move' in sample or '_' in sample:
                 continue
             input_queue.put((sample, root, dst_dir))
 

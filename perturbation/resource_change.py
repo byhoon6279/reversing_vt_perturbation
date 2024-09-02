@@ -12,6 +12,7 @@ from identify import identify
 import pickle
 from functools import lru_cache
 from common_function import *
+import multiprocessing
 
 old_rawPointer = 0
 modified_section_data = {}
@@ -276,20 +277,17 @@ def change_resource_case(file_path, output_path):
 
 #----------------------------------------------------multi_processing_main_function
 
-import os
-import multiprocessing
-from resource_change import *
-from common_function import *
-
 def process_sample(sample, root, save_dir):
     input_filepath = os.path.join(root, sample)
     try:
         change_resource_case(input_filepath, save_dir)
         print(f"Resource case changed for {sample}\n")
+        
     except pefile.PEFormatError:
         pass
-    except ValueError:
-        pass
+    
+#     except ValueError:
+#         pass
 
 def worker(input_queue):
     while True:
@@ -328,7 +326,7 @@ def main():
         create_directory(save_dir)
         
         for sample in files:
-            if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample):
+            if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample) or '_' in sample:
                 continue
             input_queue.put((sample, root, save_dir))
 

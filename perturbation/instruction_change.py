@@ -14,38 +14,43 @@ import multiprocessing
 old_rawPointer = 0
 old_nextPointer = 0
 
-def modify_headers(file_path, new_text, fin = None):
+def modify_headers(file_path, new_text):
     pe = pefile.PE(file_path)
     file_format = '.'+file_path.split('.')[-1]
 
     # Find the .text section
     text_section = None
-    section_idx = 0
+    #section_idx = 0
     new_text_list = []
     
     for section in pe.sections:
-        #if b'.text' in section.Name.strip(b'\x00').lower():
-        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
+        if (not (section.Name.rstrip(b'\x00').lower().endswith(b'data') or section.Name.rstrip(b'\x00').lower() == b'.rsrc')) and \
+           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) or \
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) or \
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
            ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or 
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or \
-           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'])):
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or 
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']) or 
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_UNINITIALIZED_DATA']) or
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_TYPE_DSECT'])):
+            
+            dict_key = section.Name.rstrip(b'\x00')
             
             text_section = section
             
-            if text_section is None:
+            if dict_key not in new_text.keys():
                 print("Error: .text section not found")
-                return
+                continue
 
-            text_section.Misc = len(new_text[section_idx])
-            new_size = int((len(new_text[section_idx]) + pe.OPTIONAL_HEADER.FileAlignment - 1) / pe.OPTIONAL_HEADER.FileAlignment) * pe.OPTIONAL_HEADER.FileAlignment
-            new_text_data = new_text[section_idx] + b'\x00' * (new_size - len(new_text[section_idx]))
+            text_section.Misc = len(new_text[dict_key])
+            new_size = int((len(new_text[dict_key]) + pe.OPTIONAL_HEADER.FileAlignment - 1) / pe.OPTIONAL_HEADER.FileAlignment) * pe.OPTIONAL_HEADER.FileAlignment
+            new_text_data = new_text[dict_key] + b'\x00' * (new_size - len(new_text[dict_key]))
             new_text_list.append(new_text_data)
             
             size_diff = new_size - text_section.SizeOfRawData
 
-            if fin:
-                print(f"[+] new Size of Raw Data: {hex(new_size)}")
-                print(f"[+] size diff: {hex(size_diff)}")
+            print(f"[+] new Size of Raw Data: {hex(new_size)}")
+            print(f"[+] size diff: {hex(size_diff)}")
 
             text_section.SizeOfRawData = new_size
             pe.OPTIONAL_HEADER.SizeOfImage = max(pe.OPTIONAL_HEADER.SizeOfImage, text_section.VirtualAddress + new_size)
@@ -58,7 +63,7 @@ def modify_headers(file_path, new_text, fin = None):
                     section.PointerToRawData += size_diff
                     prev_section = section
                     
-            section_idx +=1
+            #section_idx +=1
             
     pe.write(filename=file_path.replace(file_format, "_tmp"+file_format))
     pe.close()
@@ -69,7 +74,7 @@ def disassemble_and_modify(filepath, output_filepath):
     global old_nextPointer
     # PE 파일 열기
     xor_list = []
-    modified_text_section_list = []
+    modified_text_section_dict={}
     
     reg_32 = ["eax", "ebx", "ecx", "edx", "edi", "esi"]
     reg_64 = ["rax", "rbx", "rcx", "rdx", "rdi", "rsi", "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15"]
@@ -88,18 +93,20 @@ def disassemble_and_modify(filepath, output_filepath):
     text_section = None
     
     for section in pe.sections:
-        #if section.Name.decode().strip('\x00').lower() == ".text" or section.Name.decode().strip('\x00').upper() == "CODE":
-        #if section.Name.decode().strip('\x00').lower() in ['.text', 'text', 'code', '.code']:
-        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
+        if (not (section.Name.rstrip(b'\x00').lower().endswith(b'data') or section.Name.rstrip(b'\x00').lower() == b'.rsrc')) and \
+           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) or \
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) or \
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
            ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or 
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or \
-           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'])):
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or 
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']) or 
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_UNINITIALIZED_DATA']) or
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_TYPE_DSECT'])):
+
             text_section = section
-    
             if text_section is None or text_section.SizeOfRawData == 0:
-                print(
-                    "Failed to find .text section")
-                return
+                print("Failed to find .text section")
+                continue
             
             # 변경된 .text 섹션 데이터를 저장할 변수
             new_text = b''
@@ -314,11 +321,10 @@ def disassemble_and_modify(filepath, output_filepath):
 
             print("modified_section : ",len(new_text), "| original section : ", len(section_data), "|", section.SizeOfRawData)
             
-            modified_text_section_list.append(new_text)
-
-    return modified_text_section_list
+            modified_text_section_dict[text_section.Name.rstrip(b'\x00')] = new_text
+    return modified_text_section_dict
     
-def modify_section(file_path, new_text, save_dir):
+def modify_section(file_path, new_text, save_dir, modified_section_names):
     global old_rawPointer
     global old_nextPointer
     
@@ -336,19 +342,26 @@ def modify_section(file_path, new_text, save_dir):
     
     for section in pe.sections:
         #if b'.text' in section.Name.strip(b'\x00').lower():
-        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
+        if (not (section.Name.rstrip(b'\x00').lower().endswith(b'data') or section.Name.rstrip(b'\x00').lower() == b'.rsrc')) and \
+           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) or \
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) or \
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
            ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or 
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or \
-           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'])):
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or 
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']) or 
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_UNINITIALIZED_DATA']) or
+            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_TYPE_DSECT'])):
+
             text_section = section
             #print(text_section)        
             if section_idx == 0:
                 old_rawPointer = text_section.PointerToRawData
                 new_binary = tmp_binary[:old_rawPointer]
             
-            new_binary += new_text[section_idx]
-            new_binary += tmp_binary[text_section.PointerToRawData+text_section.SizeOfRawData:]
-            section_idx +=1
+            if section.Name.rstrip(b'\x00') in modified_section_names:
+                new_binary += new_text[section_idx]
+                new_binary += tmp_binary[text_section.PointerToRawData+text_section.SizeOfRawData:]
+                section_idx +=1
 
     with open(file_path.replace(file_format, "_changing"+file_format), "wb") as f:
         f.write(new_binary)
@@ -359,6 +372,8 @@ def modify_section(file_path, new_text, save_dir):
     print("Done!! : ",file_path.replace(file_format, "_changing"+file_format), "| ",save_dir+file_name,"\n")
     #shutil.move(save_dir+file_name,file_path) 
     os.rename(file_path.replace(file_format, "_changing"+file_format), save_dir+file_name)
+    #print(file_path.replace(file_format, "_changing"+file_format))
+    os.system('rm -rf '+file_path.replace(file_format, "_changing"+file_format))
     
 #-------------------------------------------singel_processing------------------------------------   
 # if __name__ == "__main__":
@@ -414,6 +429,7 @@ def process_sample(sample, root, save_dir):
         else:
             new_text = modify_headers(input_filepath, new_text)
             modify_section(input_filepath, new_text, save_dir+'/')
+            
     except pefile.PEFormatError:
         pass
 
