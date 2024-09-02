@@ -1,117 +1,97 @@
 import distorm3
 import pefile
-import pickle
-import shutil
-import r2pipe
-import multiprocessing
-
-from add_section import *
-from common_function import *
+from pe_library import *
 from iced_x86 import *
 from typing import Union, Dict, Sequence 
 from types import ModuleType
 from keystone import *
+import pickle
+import shutil
+import r2pipe
+import mmap
 from tqdm import tqdm
+from common_function import *
 from functools import lru_cache
+import multiprocessing
 
 old_rawPointer = 0
 old_nextPointer = 0
 
-def modify_headers(file_path, new_text, fin = None):
+# Helper function for memory mapping
+def memory_map(filename):
+    with open(filename, "r+b") as f:
+        return mmap.mmap(f.fileno(), 0)
+    
+def modify_headers(file_path, new_text, fin=None):
     pe = pefile.PE(file_path)
-    file_format = '.'+file_path.split('.')[-1]
+    file_format = '.' + file_path.split('.')[-1]
 
     # Find the .text section
     text_section = None
     section_idx = 0
-    new_text_list = []
+    
     for section in pe.sections:
         if b'.text' in section.Name.strip(b'\x00').lower():
             text_section = section
+            break
+
+    if text_section is None:
+        print("Error: .text section not found")
+        return
+
+    new_text_data = new_text[section_idx]
+    text_section.Misc = len(new_text_data)
+    new_size = (len(new_text_data) + pe.OPTIONAL_HEADER.FileAlignment - 1) // pe.OPTIONAL_HEADER.FileAlignment * pe.OPTIONAL_HEADER.FileAlignment
+    new_text_data += b'\x00' * (new_size - len(new_text_data))
+
+    size_diff = new_size - text_section.SizeOfRawData
+
+    if fin:
+        print(f"[+] new Size of Raw Data: {hex(new_size)}")
+        print(f"[+] size diff: {hex(size_diff)}")
+
+    text_section.SizeOfRawData = new_size
+    pe.OPTIONAL_HEADER.SizeOfImage = max(pe.OPTIONAL_HEADER.SizeOfImage, text_section.VirtualAddress + new_size)
+
+    prev_section = text_section
+    for section in pe.sections:
+        if section.VirtualAddress > text_section.VirtualAddress:
+            section.VirtualAddress = (prev_section.VirtualAddress + 
+                                      (prev_section.Misc + pe.OPTIONAL_HEADER.SectionAlignment - 1) // pe.OPTIONAL_HEADER.SectionAlignment * pe.OPTIONAL_HEADER.SectionAlignment)
+            section.PointerToRawData += size_diff
+            prev_section = section
             
-            if text_section is None:
-                print("Error: .text section not found")
-                return
+    section_idx +=1
 
-            text_section.Misc = len(new_text[section_idx])
-            new_size = int((len(new_text[section_idx]) + pe.OPTIONAL_HEADER.FileAlignment - 1) / pe.OPTIONAL_HEADER.FileAlignment) * pe.OPTIONAL_HEADER.FileAlignment
-            new_text_data = new_text[section_idx] + b'\x00' * (new_size - len(new_text[section_idx]))
-            new_text_list.append(new_text_data)
-            
-            size_diff = new_size - text_section.SizeOfRawData
-
-            if fin:
-                print(f"[+] new Size of Raw Data: {hex(new_size)}")
-                print(f"[+] size diff: {hex(size_diff)}")
-
-            text_section.SizeOfRawData = new_size
-            pe.OPTIONAL_HEADER.SizeOfImage = max(pe.OPTIONAL_HEADER.SizeOfImage, text_section.VirtualAddress + new_size)
-
-            prev_section = text_section
-            for section in pe.sections:
-                if section.VirtualAddress > text_section.VirtualAddress:
-                    section.VirtualAddress = (prev_section.VirtualAddress + 
-                                              (prev_section.Misc + pe.OPTIONAL_HEADER.SectionAlignment - 1) // pe.OPTIONAL_HEADER.SectionAlignment * pe.OPTIONAL_HEADER.SectionAlignment)
-                    section.PointerToRawData += size_diff
-                    prev_section = section
-                    
-            section_idx +=1
-            
-    pe.write(filename=file_path.replace(file_format, "_tmp"+file_format))
+    pe.write(filename=file_path.replace(file_format, "_tmp" + file_format))
     pe.close()
-    return new_text_list
+    return [new_text_data]
 
-def modify_section(file_path, new_text, save_dir, number_of_nop, fin = None):
+def modify_section(file_path, new_text, save_dir, number_of_nop, fin=None):
     global old_rawPointer
     global old_nextPointer
     
-    number_of_nop = str(number_of_nop)
-    file_format = '.'+file_path.split('.')[-1]
-    
-    pe = pefile.PE(file_path)
-    
-    tmp_file = file_path.replace(file_format, "_tmp"+file_format)
-    
+    file_format = '.' + file_path.split('.')[-1]
+    tmp_file = file_path.replace(file_format, "_tmp" + file_format)
+
     with open(tmp_file, "rb") as tmp:
         tmp_binary = tmp.read()
-        
-    section_idx = 0
-    
-    for section in pe.sections:
-        if b'.text' in section.Name.strip(b'\x00').lower():
-            text_section = section
-            
-            if '0' in str(section.Name.strip(b'\x00')):
-                old_rawPointer = text_section.PointerToRawData
-                new_binary = tmp_binary[:old_rawPointer]
-            
-            new_binary += new_text[section_idx]
-            new_binary += tmp_binary[text_section.PointerToRawData+text_section.SizeOfRawData:]
-            section_idx +=1
 
-    with open(file_path.replace(file_format, "_adding_"+number_of_nop+file_format), "wb") as f: 
-        f.write(new_binary)
-        
-    os.remove(tmp_file)
-
-    file_name = file_path.split('/')[-1].replace(file_format, "_adding_"+number_of_nop+file_format)
+    new_binary = tmp_binary[:old_rawPointer] + new_text[0] + tmp_binary[old_rawPointer + len(new_text[0]):]
 
     if fin:
-        print(f"[+] new size of binary : {len(new_binary)}")
-        file_name = file_name.replace('_adding_'+number_of_nop+file_format,'_nop_fin_'+number_of_nop+file_format)
-
-        directory, old_filename = os.path.split(save_dir)
-        new_path = os.path.join(directory, file_name)
-
-        os.rename(file_path.replace(file_format, "_adding_"+number_of_nop+file_format), new_path)
-        os.system('rm -rf ./'+save_dir)
-        return new_path
-
+        final_path = os.path.join(save_dir, file_path.split('/')[-1].replace(file_format, f"_nop_fin_{number_of_nop}{file_format}"))
     else:
-        os.rename(file_path.replace(file_format, "_adding_"+number_of_nop+file_format), save_dir+file_name)
-        print("modified_section_return save_dir : ",save_dir+file_name)
-        return save_dir+file_name
+        final_path = os.path.join(save_dir, file_path.split('/')[-1].replace(file_format, f"_adding_{number_of_nop}{file_format}"))
 
+    with open(final_path, "wb") as f:
+        f.write(new_binary)
+
+    os.remove(tmp_file)
+
+    return final_path
+
+    
 def modify_tramp(save_dir, modified_address, fin = None):
 
     file_path = save_dir
@@ -139,114 +119,104 @@ def modify_tramp(save_dir, modified_address, fin = None):
  
     array_offset = 0
     
-    try:
-        for (offset, size, instruction, hexdump) in decoded_instructions:
-            if '90' not in hexdump:
-                print(offset, hex(offset), size, instruction, hexdump)
+    for (offset, size, instruction, hexdump) in decoded_instructions:
+        if '90' not in hexdump:
+            print(offset, hex(offset), size, instruction, hexdump)
 
-                present_address = hex(offset)
-                array_offset = offset
-                instruction_len = size
-                instruction = hexdump
+            present_address = hex(offset)
+            array_offset = offset
+            instruction_len = size
+            instruction = hexdump
 
-                offset = to_little_endian(instruction[2:])
-                int_operand = hex_to_signed_int(offset)
+            offset = to_little_endian(instruction[2:])
+            int_operand = hex_to_signed_int(offset)
 
-                target_address = instruction_len + int(present_address,16) + int_operand
-                new_address = modified_address[target_address]
+            target_address = instruction_len + int(present_address,16) + int_operand
+            new_address = modified_address[target_address]
 
-                new_offset = new_address - instruction_len - int(present_address,16)
+            new_offset = new_address - instruction_len - int(present_address,16)
 
-                operand = hex(new_offset).replace('x','0',1)
+            operand = hex(new_offset).replace('x','0',1)
 
-                if len(operand)%2 !=0:
-                    new_operand = '0'+operand
-                    operand = new_operand
+            if len(operand)%2 !=0:
+                new_operand = '0'+operand
+                operand = new_operand
 
-                operand = to_little_endian(operand)
-                operand += '0' * (8-len(operand))
+            operand = to_little_endian(operand)
+            operand += '0' * (8-len(operand))
 
-                if fin:
-                    print("Trampoline Address : ",hex(target_address),"-->",hex(new_address))
-                    print(".Tramp operand : ",operand,len(operand))
+            if fin:
+                print("Trampoline Address : ",hex(target_address),"-->",hex(new_address))
+                print(".Tramp operand : ",operand,len(operand))
 
-                new_value =  bytes.fromhex(('e9'+operand))
+            new_value =  bytes.fromhex(('e9'+operand))
 
-                break
+            break
 
-        print(new_value)
+    print(new_value)
 
-        # 변경된 데이터를 PE 파일에 반영
-        pe.set_bytes_at_offset(array_offset, new_value)
+    # 변경된 데이터를 PE 파일에 반영
+    pe.set_bytes_at_offset(array_offset, new_value)
 
-        output_file_path = file_path 
-        pe.write(output_file_path)
-    except:
-        pass
+    output_file_path = file_path 
+    pe.write(output_file_path)
     
-def modify_rdata(save_dir, modified_address, fin=None):
+def modify_rdata(save_dir, modified_address, fin = None):
     # PE 파일 로드
     file_path = save_dir
     pe = pefile.PE(file_path)
 
-    # .rdata 섹션과 .text 섹션 찾기
-    text_section = None
-    rdata_section = None
-    
+    # .rdata 섹션 찾기
     for section in pe.sections:
-        section_name = section.Name.decode().strip('\x00').lower()
-
-        # .rdata 섹션을 찾음 -> 요기 수정했었음
+        #if section.Name.decode().strip('\x00').lower() in ['.data', '.rdata', 'data', 'const']: # add malware's custom section name if you want
         if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
             section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
             section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
-            
-                rdata_section = section
-                rdata_start = section.VirtualAddress
-                rdata_end = rdata_start + section.Misc_VirtualSize
-                section_size = section.SizeOfRawData
-                section_start = section.PointerToRawData
-                data = bytearray(pe.get_memory_mapped_image()[rdata_start:rdata_start + section_size])
 
-        # .text 섹션을 권한 조건으로 찾음           
-        if (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) and \
-           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or 
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or \
-           (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']))and b'.text' in section.Name.strip(b'\x00').lower():
-            
-            text_section = section
-            text_start = section.VirtualAddress + pe.OPTIONAL_HEADER.ImageBase
-            text_end = text_start + section.Misc_VirtualSize
+            section = section
+            rdata_start = section.VirtualAddress
+            rdata_end = rdata_start + section.Misc_VirtualSize
+            section_size = section.SizeOfRawData
+            section_start = section.PointerToRawData
 
-            if text_section and rdata_section:
-                break  # 둘 다 찾았으면 루프를 중단
+            data = bytearray(pe.get_memory_mapped_image()[rdata_start:rdata_start + section_size])
+            #print(data)
 
-            # rdata 섹션의 절대 주소를 수정
-            if rdata_section and text_section:
-                for i in range(0, rdata_section.Misc_VirtualSize, 4):
-                    value = int.from_bytes(pe.get_data(rdata_section.VirtualAddress + i, 4), byteorder='little')
+            # 절대 주소 필터링을 위한 범위 설정
+            image_base = pe.OPTIONAL_HEADER.ImageBase
+            text_section = next(section for section in pe.sections if  b'.text' in section.Name.strip(b'\x00').lower())
+            text_start = text_section.VirtualAddress + image_base
+            text_end = text_start + text_section.Misc_VirtualSize
 
-                    if text_start <= value < text_end:
-                        if value in modified_address:
-                            new_address = modified_address[value]
-                            index = data.find(pe.get_data(rdata_section.VirtualAddress + i, 4))
+            for i in range(0, section.Misc_VirtualSize, 4):
+                value = int.from_bytes(pe.get_data(rdata_start + i, 4), byteorder='little')
 
-                            if fin:
-                                print("Modified Address: ", hex(value), " --> ", hex(new_address))
+                if text_start <= value < text_end:
+                    # 절대 주소 수정
+                    #try:
+                    if value in modified_address:
+                        #if modified_address[value]:
+                        new_address = modified_address[value]
+                        index = data.find(pe.get_data(rdata_start + i, 4))
 
-                            new_address = hex(new_address).replace('x', '0', 1)
-                            new_address = to_little_endian(new_address)
-                            pe.set_bytes_at_offset(rdata_section.PointerToRawData + index, bytes.fromhex(new_address))
+                        if fin:
+                            print("Modified Address : ", hex(value)," --> ",hex(new_address))
+
+                        new_address = hex(new_address).replace('x','0',1)
+                        new_address = to_little_endian(new_address)
+                        pe.set_bytes_at_offset(section_start + index, bytes.fromhex(new_address))
+                   # except:
+                    else:
+                        continue
 
     # 수정된 PE 파일 저장
     output_file_path = save_dir
     pe.write(output_file_path)
     print(f"Modified PE file saved as {output_file_path}")
-
+    
     return output_file_path
 
-
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=128 )
 def to_little_endian(hex_str):
     # 2자리씩 끊어서 리스트로 만듭니다.
     bytes_list = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
@@ -273,7 +243,7 @@ def should_add_nop(instruction):
     opcode = instruction.split()[0].lower()
     return opcode not in control_flow_instructions
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=128)
 def negative_to_little_endian_hex(negative_integer):
     # 음수를 32비트 2의 보수 16진수로 변환
     hex_string = hex(negative_integer & 0xFFFFFFFF)[2:]
@@ -289,7 +259,7 @@ def negative_to_little_endian_hex(negative_integer):
 
     return little_endian_hex
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=128)
 def hex_to_signed_int(hex_str):
     value = int(hex_str, 16)
     if value & (1 << (len(hex_str) * 4 - 1)):
@@ -508,8 +478,9 @@ def code_to_string(value: Code_) -> str:
     if s is None:
         return str(value) + " /*Code enum*/"
     return s
-
+@lru_cache(maxsize=128)
 def value_int_convert(value):
+    value = list(value)
     value = value[0].replace('h','',1)
     value = value.replace(',','',1)
     hex_value = value.replace('[','',1).replace(']','',1)
@@ -519,7 +490,8 @@ def value_int_convert(value):
         
     value = int(hex_value,16)
     return value, hex_value
-    
+
+@lru_cache(maxsize=128)
 def calc_offset(target_address, instr, ori_operand, op_code):
     if instr.ip > target_address:
         new_operand = target_address - instr.ip - len(instr)
@@ -541,7 +513,7 @@ def calc_offset(target_address, instr, ori_operand, op_code):
 
     return new_ins, op_code, operand 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=128)
 def hex_string_to_bytes(hex_string):
     # 입력 문자열에서 공백 제거 및 소문자 처리
     hex_string = hex_string.strip().upper()
@@ -552,7 +524,7 @@ def hex_string_to_bytes(hex_string):
     # 바이트 문자열을 반환
     return bytes_result
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=128)
 def is_prefixes(hex_string):
     # 프리픽스 집합 정의
     prefixes = {
@@ -747,7 +719,7 @@ def make_new_text(file_path ,number_of_nop):
                     value = address_pattern_short.findall(str(instr))
 
                     if value:
-                        value, hex_value = value_int_convert(value)
+                        value, hex_value = value_int_convert(frozenset(value))
 
                     else:
                         saperator = [present_instr.hex()[i:i+2] for i in range(0, len(present_instr.hex()), 2)]
@@ -1035,12 +1007,12 @@ def make_new_text(file_path ,number_of_nop):
 def calc_offset(target_address, address, ori_operand, op_code, size):
     
     if address > target_address:
-        #print(" up jump")
+        print(" up jump")
         new_operand = address - target_address - size #len(instr)
         operand = negative_to_little_endian_hex(new_operand)
 
     if address < target_address:
-        #print(" down jump")
+        print(" down jump")
         new_operand = target_address - address - size #len(instr)
         operand = hex(new_operand).replace('x','0',1) # target_address affset
         operand = operand.replace('00','',1)
@@ -1058,27 +1030,22 @@ def calc_offset(target_address, address, ori_operand, op_code, size):
     return new_ins, op_code, operand 
 
 def unmatched_address_chacker(modified_address, caller_callee_dict, checking_target_address):
-    
-    
-    new_address_to_ori_address = {v:k for k,v in modified_address.items()} # new address to original
+    new_address_to_ori_address = {v: k for k, v in modified_address.items()}
     modifying_address = {}
 
-    for caller,callee in checking_target_address.items():
+    for caller, callee in checking_target_address.items():
         try:
-
             if caller in new_address_to_ori_address and callee in new_address_to_ori_address:
                 ori_caller = new_address_to_ori_address[caller]
                 ori_callee = new_address_to_ori_address[callee]
 
                 if caller_callee_dict[ori_caller] != ori_callee:
-                    #modifying_address[caller] = modified_address[caller_callee_dict[ori_caller]]
                     modifying_address[caller] = modified_address[caller_callee_dict[ori_caller]]
                     continue
-
             else:
                 if caller in new_address_to_ori_address:
                     ori_caller = new_address_to_ori_address[caller]
-                    ori_callee = caller_callee_dict[ori_caller]                
+                    ori_callee = caller_callee_dict[ori_caller]
                     new_callee = modified_address[ori_callee]
                     modifying_address[caller] = new_callee
                     continue
@@ -1089,7 +1056,6 @@ def unmatched_address_chacker(modified_address, caller_callee_dict, checking_tar
                     new_caller = modified_address[ori_caller]
                     modifying_address[new_caller] = callee
                     continue
-                    
         except KeyError:
             continue
 
@@ -1098,20 +1064,19 @@ def unmatched_address_chacker(modified_address, caller_callee_dict, checking_tar
 def modify_instruction_at_address(binary_data, text_section, target_address, new_ins):
     relative_address = target_address - text_section.VirtualAddress
     binary_data = bytearray(binary_data)
-    binary_data[text_section.PointerToRawData + relative_address : text_section.PointerToRawData + relative_address + len(new_ins)] = bytes.fromhex((new_ins))
+    binary_data[text_section.PointerToRawData + relative_address:text_section.PointerToRawData + relative_address + len(new_ins)] = bytes.fromhex((new_ins))
     return binary_data
 
 def is_direct_address(target, decoded_instructions):
-    # Check for immediate values (which could indicate direct addresses)
     immediate_pattern = re.compile(r'\b0x[0-9A-Fa-f]+\b')
     for (offset, size, instruction, hexdump) in decoded_instructions:
         if offset == target:
-            
             if bool(immediate_pattern.search(instruction)) and ('ff' not in hexdump):
                 return "ABS", offset, instruction, hexdump, size
             else:
                 return "REL", offset, instruction, hexdump, size
             
+@lru_cache(maxsize=128)            
 def decode_instructions(binary_data, start_address, bitness):
     if bitness == 64:
         mode = distorm3.Decode64Bits
@@ -1126,24 +1091,18 @@ def decode_instructions(binary_data, start_address, bitness):
 def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, number_of_nop):
 
     modifying_address = unmatched_address_chacker(modified_address, caller_callee_dict, checking_target_address)
-    print("valid_address_check : ",modifying_address, len(modifying_address))
+    print("valid_address_check:", modifying_address, len(modifying_address))
     
     if not modifying_address:
         return
     
-    print(save_dir)
     pe = pefile.PE(save_dir)
     pe_data = open(save_dir, "rb").read()
 
-    prev_section = None   
     binary_data_list = []
     for section in pe.sections:
-        if  b'.text' in section.Name.strip(b'\x00'):
-            old_nextPointer = section.PointerToRawData
+        if b'.text' in section.Name.strip(b'\x00'):
             text_section = section
-            #break
-
-            prev_section = section
 
             if text_section is None or text_section.SizeOfRawData == 0:
                 print("Error: .text section not found")
@@ -1155,40 +1114,29 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
             text_end = text_start + text_section.Misc_VirtualSize
 
             binary_data = text_section.get_data()
-            ori_binary_data = binary_data
 
             if pe.FILE_HEADER.Machine == 0x8664:
                 bitness = 64
-                address_pattern_short = re.compile(r'\b0x[0-9A-Fa-f]{12}\b|\[0x[0-9A-Fa-f]{12}\]')
-                address_pattern_long = re.compile(r'\b0x[0-9A-Fa-f]{16}\b|\[0x[0-9A-Fa-f]{16}\]')
             else:
                 bitness = 32
-                address_pattern_short = re.compile(r'\b0x[0-9A-Fa-f]{6}\b|\[0x[0-9A-Fa-f]{6}\]')
-                address_pattern_long = re.compile(r'\b0x[0-9A-Fa-f]{8}\b|\[0x[0-9A-Fa-f]{8}\]')
 
             decoded_instructions = decode_instructions(binary_data, text_start, bitness)
 
             for target, destination in modifying_address.items():
                 try:
-                    checker_80 = 0
-                    #print("target : ",target, decoded_instructions):
-                    address_type, address, instrcution, hexdump, size = is_direct_address(target, decoded_instructions)
+                    address_type, address, instruction, hexdump, size = is_direct_address(target, decoded_instructions)
 
-                    instr_str = str(instrcution)
+                    instr_str = str(instruction)
                     present_instr = hexdump
 
                     prefixes = None
-                    #print(present_instr)
                     prefixes, present_instr = is_prefixes(present_instr.upper())
 
-                    if 'REL' not in address_type: # 절대주소
+                    if 'REL' not in address_type:
                         value = address_pattern_short.findall(instr_str)
 
                         if not value:
                             value = address_pattern_long.findall(instr_str)
-
-                            if len(present_instr) == 14 and present_instr[-2:] == '80':
-                                checker_80 = 1
 
                         if value:
                             value, hex_value = value_int_convert(value)
@@ -1201,41 +1149,30 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
                             target_address = to_little_endian(hex_value) + '00'
                             op_code = present_instr[:2]
 
-                            operand = hex(destination).replace('x','0',1) # target_address affset
+                            operand = hex(destination).replace('x', '0', 1)
                             operand = to_little_endian(operand)
 
-                            if checker_80 == 1:
-                                op_code = present_instr[:6]                    
-                                new_ins = op_code+operand+'80'
+                            new_ins = op_code.hex() + operand
 
-                                if prefixes:
-                                    new_ins = prefixes+op_code+operand+'80'
-
-                                new_ins = new_ins.replace('0080','80',1)
-
-                            else:
-                                #print(op_code.hex(),operand)
-                                new_ins = op_code.hex()+operand
-
-                    elif 'REL' in address_type: # 상대주소:
+                    elif 'REL' in address_type:
                         op_code = present_instr[:2]
                         operand = present_instr[2:]
                         ori_operand = operand
 
-                        if len(operand)>8:
+                        if len(operand) > 8:
                             op_code = present_instr[:4]
                             operand = present_instr[4:]
                             ori_operand = operand
 
                         value = address_pattern_short.findall(instr_str)
 
-                        if value: #상대주소
-                            new_ins, op_code,operand = calc_offset(destination, address, ori_operand, op_code, size)
+                        if value:
+                            new_ins, op_code, operand = calc_offset(destination, address, ori_operand, op_code, size)
 
                         else:
                             value = address_pattern_long.findall(instr_str)
-                            if value: #상대주소
-                                new_ins,op_code,operand  = calc_offset(destination, address, ori_operand, op_code, size)
+                            if value:
+                                new_ins, op_code, operand = calc_offset(destination, address, ori_operand, op_code, size)
 
                     binary_data = modify_instruction_at_address(binary_data, text_section, target, new_ins)
                 except:
@@ -1243,66 +1180,63 @@ def valid_address_check(file_path, save_dir, caller_callee_dict, checking_target
                 
             binary_data_list.append(binary_data)
         
-    #new_text = binary_data
-    print(f"[++] original .text section length : {text_section.Misc}")
-    print(f"[++] new .text section length : {len(binary_data_list)}") 
-    new_text = modify_headers(file_path, binary_data_list, fin = 1)
-    save_dir = modify_section(file_path, new_text, save_dir, str(number_of_nop), fin = 1)
-    modify_tramp(save_dir, modified_address, fin = 1)
-    modify_rdata(save_dir, modified_address, fin = 1)
+    new_text = modify_headers(file_path, binary_data_list, fin=1)
+    save_dir = modify_section(file_path, new_text, save_dir, str(number_of_nop), fin=1)
+    modify_tramp(save_dir, modified_address, fin=1)
+    modify_rdata(save_dir, modified_address, fin=1)
 
 #------------------------------------Single processing version main function--------------------------------------------------------   
-if __name__ == '__main__':
+# if __name__ == '__main__':
         
-#     sample_dir = '../sample/section_move_sample/'
-#     save_dir = '../sample/perturbated_sample/adding_nop/'
+# #     sample_dir = '../sample/section_move_sample/'
+# #     save_dir = '../sample/perturbated_sample/adding_nop/'
 
-    sample_dir = '../sample/section_move_benign_sample/'
-    #save_dir = '../sample/perturbated_sample/adding_nop/'
-    save_dir = sample_dir
+#     sample_dir = '../sample/section_move_benign_sample/'
+#     #save_dir = '../sample/perturbated_sample/adding_nop/'
+#     save_dir = sample_dir
     
             
-#     sample_dir = '../evaluation/section_move_sample/'
-#     save_dir = '../evaluation/perturbated_sample/adding_nop/'
+# #     sample_dir = '../evaluation/section_move_sample/'
+# #     save_dir = '../evaluation/perturbated_sample/adding_nop/'
     
-    samples = list_files_by_size(sample_dir)
-    create_directory(save_dir)
+#     samples = list_files_by_size(sample_dir)
+#     create_directory(save_dir)
     
-    number_of_nop = 1
+#     number_of_nop = 1
     
-    for sample in samples:
-        #save_dir = '../sample/perturbated_sample/adding_nop/'
-        save_dir = sample_dir
-        #save_dir = '../evaluation/perturbated_sample/adding_nop/'
-        if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
-            continue
+#     for sample in samples:
+#         #save_dir = '../sample/perturbated_sample/adding_nop/'
+#         save_dir = sample_dir
+#         #save_dir = '../evaluation/perturbated_sample/adding_nop/'
+#         if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample:
+#             continue
 
-#         if '085c1a53091bf9c9ff15844c848200b119e74d11298f3caa57e285619bb4fa28.exe' not in sample:
-#         if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample or 'Frombook_new.exe' in sample:
-        if 'PEview.exe' not in sample:
-            continue
+# #         if '085c1a53091bf9c9ff15844c848200b119e74d11298f3caa57e285619bb4fa28.exe' not in sample:
+# #         if '0c34ed46c75b33e392091d8fb7b4449b2fd78b6a56ae7d89f5e6441c48f10692_new.exe' in sample or 'PEview_new.exe' in sample or 'hello_32_new.exe' in sample or 'Frombook_new.exe' in sample:
+#         if 'PEview_new.exe' not in sample:
+#             continue
 
-        file_path = sample_dir+sample
+#         file_path = sample_dir+sample
 
-        #print(file_path)
-        try:  
-            new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+#         print(file_path)
+#         try:  
+#             new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
             
-            if new_text is None:
-                print(f"[+] Error : failed to make new_text section.") 
+#             if new_text is None:
+#                 print(f"[+] Error : failed to make new_text section.") 
                 
-            else:
-                print("modified text sections : ",len(new_text))
-                #print(new_text[0], '\n',new_text[1])
-                new_text = modify_headers(file_path, new_text)
-                save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
-                modify_tramp(save_dir, modified_address)
-                save_dir = modify_rdata(save_dir, modified_address)
-                valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
-                print("Done!!",sample)
+#             else:
+#                 print("modified text sections : ",len(new_text))
+#                 #print(new_text[0], '\n',new_text[1])
+#                 new_text = modify_headers(file_path, new_text)
+#                 save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
+#                 modify_tramp(save_dir, modified_address)
+#                 save_dir = modify_rdata(save_dir, modified_address)
+#                 valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+#                 print("Done!!",sample)
                 
-        except pefile.PEFormatError:
-            continue 
+#         except pefile.PEFormatError:
+#             continue 
 
 
 #------------------------------------multi processing version main function--------------------------------------------------------
@@ -1588,3 +1522,90 @@ if __name__ == '__main__':
 
 # if __name__ == '__main__':
 #     main()
+
+#--------------------------------------------labeling_sample_multi_processing------------------------------------------
+def process_sample(sample, root, save_dir, number_of_nop):
+    file_path = os.path.join(root, sample)
+    output_filename_1 = sample.replace('.exe', '_adding_'+str(number_of_nop)+'.exe')
+    output_filename_2 = sample.replace('.exe', '_nop_fin_'+str(number_of_nop)+'.exe')
+    output_filepath_1 = os.path.join(save_dir, output_filename_1)
+    output_filepath_2 = os.path.join(save_dir, output_filename_2)
+
+    # 두 가지 파일 중 하나라도 존재하면 작업을 건너뜀
+    if os.path.isfile(output_filepath_1) or os.path.isfile(output_filepath_2):
+        return
+
+    try:
+        new_text, modified_address, caller_callee_dict, checking_target_address = make_new_text(file_path, number_of_nop)
+
+        if new_text is None:
+            print(f"[+] Error: Failed to create new_text section for {sample}.")
+        else:
+            print("len_new_text:", len(new_text))
+            new_text = modify_headers(file_path, new_text)
+            save_dir = modify_section(file_path, new_text, save_dir, number_of_nop)
+            print(len(modified_address))
+            modify_tramp(save_dir, modified_address)
+            save_dir = modify_rdata(save_dir, modified_address)
+            valid_address_check(file_path, save_dir, caller_callee_dict, checking_target_address, modified_address, str(number_of_nop))
+            print("Done!!", sample)
+    except pefile.PEFormatError:
+        pass
+
+def worker(input_queue):
+    while True:
+        task = input_queue.get()
+        if task is None:
+            break
+        sample, root, save_dir, number_of_nop = task
+        process_sample(sample, root, save_dir, number_of_nop)
+        input_queue.task_done()
+
+def main():
+    sample_dir = '../sample/perturbated_labling_sample/section_move/'
+    save_dir_base = '../sample/perturbated_labling_sample/adding_nop/'
+    
+    # 작업 큐 생성
+    input_queue = multiprocessing.JoinableQueue()
+
+    # CPU 코어 수의 절반만 사용하도록 설정
+    num_processes = max(1, multiprocessing.cpu_count() // 5)
+
+    # 워커 프로세스 생성 및 시작
+    processes = []
+    for _ in range(num_processes):
+        p = multiprocessing.Process(target=worker, args=(input_queue,))
+        p.start()
+        processes.append(p)
+
+    for root, dirs, files in os.walk(sample_dir):
+        if 'ok' in root.split(os.sep):  # 'OK' 디렉토리를 건너뛰기
+            continue
+            
+        if len(files) <= 10:  # 파일이 10개 이하인 디렉토리는 건너뛰기
+            continue
+        
+        save_dir = os.path.join(save_dir_base, os.path.basename(root))
+        create_directory(save_dir+'/')
+        
+        for sample in list_files_by_size(root):
+            if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
+                continue
+
+            # 작업 큐에 작업 추가
+            input_queue.put((sample, root, save_dir+'/', 1))
+
+    # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
+    input_queue.join()
+    for _ in range(num_processes):
+        input_queue.put(None)
+
+    # 워커 프로세스 종료
+    for p in processes:
+        p.join()
+
+    print("All tasks are completed.")
+
+if __name__ == '__main__':
+    main()
+
