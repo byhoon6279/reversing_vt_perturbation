@@ -85,7 +85,7 @@ def disassemble_and_modify(filepath, output_filepath):
     mov_32_0 = ['pushfd|xor op0,op0|popfd|nop','pushfd|sub op0,op0|popfd|nop','pushfd|and op0,0|popfd'] # mov reg 0
     mov_32_1= ['pushfd| xor op0,op0|inc op0|popfd'] # mov reg 1
     mov_32_hex = ['push op1|pop op0|nop|nop','nop|nop|push op1|pop op0','nop|push op1|nop|pop op0','push op1|nop|pop op0|nop','nop|push op1|pop op0|nop','push op1|nop|nop|pop op0'] # mov reg hex
-
+    print("89 : ",filepath)
     pe = pefile.PE(filepath)
     pe_data = open(filepath, "rb").read()
 
@@ -93,7 +93,7 @@ def disassemble_and_modify(filepath, output_filepath):
     text_section = None
     
     for section in pe.sections:
-        if (not (section.Name.rstrip(b'\x00').lower().endswith(b'data') or section.Name.rstrip(b'\x00').lower() == b'.rsrc')) and \
+        if (not (section.Name.rstrip(b'\x00').lower().endswith(b'data') or section.Name.rstrip(b'\x00').lower() == b'.rsrc' or section.Name.rstrip(b'\x00').lower() == b'.reloc')) and \
            ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) or \
             (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) or \
             (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
@@ -328,46 +328,55 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
     global old_rawPointer
     global old_nextPointer
     
-    #number_of_nop = str(number_of_nop)
+    modified_section_names = list(modified_section_names)
+    
     file_format = '.'+file_path.split('.')[-1]
     
     pe = pefile.PE(file_path)
     
     tmp_file = file_path.replace(file_format, "_tmp"+file_format)
-    
     with open(tmp_file, "rb") as tmp:
         tmp_binary = tmp.read()
         
     section_idx = 0
-    
+    section_cnt = len(modified_section_names)
+    new_binary = b''
+    #print("modified_section_names : ",modified_section_names)
     for section in pe.sections:
-        #if b'.text' in section.Name.strip(b'\x00').lower():
-        if (not (section.Name.rstrip(b'\x00').lower().endswith(b'data') or section.Name.rstrip(b'\x00').lower() == b'.rsrc')) and \
-           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) or \
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) or \
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE'])) and \
-           ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']) or 
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) or 
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA']) or 
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_UNINITIALIZED_DATA']) or
-            (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_TYPE_DSECT'])):
+        for section_cnt, section_name in enumerate(modified_section_names):
+            if section_name.lower() == section.Name.strip(b'\x00').lower():    
+                text_section = section
+                if section_cnt == 0:
+                    old_rawPointer = text_section.PointerToRawData
+                    new_binary = tmp_binary[:old_rawPointer]
+                    new_binary += new_text[section_idx]
+                    new_binary += tmp_binary[text_section.PointerToRawData+text_section.SizeOfRawData:]
 
-            text_section = section
-            #print(text_section)        
-            if section_idx == 0:
-                old_rawPointer = text_section.PointerToRawData
-                new_binary = tmp_binary[:old_rawPointer]
-            
-            if section.Name.rstrip(b'\x00') in modified_section_names:
-                new_binary += new_text[section_idx]
-                new_binary += tmp_binary[text_section.PointerToRawData+text_section.SizeOfRawData:]
-                section_idx +=1
-
+                else:
+                    new_binary += new_text[section_idx]
+                    new_binary += tmp_binary[text_section.PointerToRawData+text_section.SizeOfRawData:]
+                
+                section_idx += 1
+                section_cnt -= 1
+                print(section_idx, section_cnt)
+                if section_cnt == 0 or section_cnt == -1:
+                    break
+                    
+            else:
+                if not new_binary:
+                    old_rawPointer = section.PointerToRawData
+                    new_binary = tmp_binary[:old_rawPointer]
+                    new_binary = new_text
+                    
+            new_binary += tmp_binary[section.PointerToRawData+section.SizeOfRawData:]
+    
+    print("fp : ",file_path, len(new_binary))
+    
     with open(file_path.replace(file_format, "_changing"+file_format), "wb") as f:
         f.write(new_binary)
         
     os.remove(tmp_file)
-    
+    print("save : ",save_dir)
     file_name = file_path.split('/')[-1].replace(file_format, "_changing"+file_format)
     print("Done!! : ",file_path.replace(file_format, "_changing"+file_format), "| ",save_dir+file_name,"\n")
     #shutil.move(save_dir+file_name,file_path) 
@@ -393,8 +402,8 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
 
 #     for sample in samples:
                  
-#         if 'PEview.exe' not in sample:
-#              continue
+# #         if 'PEview.exe' not in sample:
+# #              continue
                  
 #         if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample or '.' not in sample:
 #             continue
@@ -409,82 +418,268 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
 #         if new_text is None:
 #             print(f"[+] Error : failed to make new_text section.")
 #         else:
+#             modified_section_names = new_text.keys()
 #             new_text = modify_headers(input_filepath, new_text)
-#             modify_section(input_filepath, new_text, save_dir)
+#             modify_section(input_filepath, new_text, save_dir,modified_section_names)
 
-#-------------------------------------------malware_family_multi_processing------------------------------------
-def process_sample(sample, root, save_dir):
+#-------------------------------------------malware_family_multi_processing------------------------------------       
+# def process_sample(args):
+#     sample, root, save_dir = args
+#     file_path = os.path.join(root, sample)
+#     output_filename_1 = sample.replace('.exe', '_changing.exe')
+#     output_filepath_1 = os.path.join(save_dir, output_filename_1)
+
+#     if os.path.isfile(output_filepath_1):
+#         return
+
+#     try:
+#         new_text = disassemble_and_modify(file_path, save_dir)
+
+#         if new_text is None:
+#             print(f"[+] Error: Failed to create new_text section for {sample}.")
+#         else:
+#             new_text = modify_headers(file_path, new_text)
+#             modify_section(file_path, new_text, save_dir+'/')
+            
+#     except pefile.PEFormatError:
+#         pass
+
+# def main():
+#     #sample_dir = '../sample/labeling/'
+#     #save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
+    
+    
+#     sample_dir = '../sample/perturbated_labling_sample/adding_nop'
+#     save_dir_base = '../sample/perturbated_labling_sample/adding_nop+instruction_change/'
+    
+#     tasks = []
+
+#     for root, dirs, files in os.walk(sample_dir):
+#         if 'ok' in root.split(os.sep):
+#             continue
+
+#         if len(files) <= 10:
+#             continue
+        
+#         save_dir = os.path.join(save_dir_base, os.path.basename(root))
+#         create_directory(save_dir + '/')
+        
+#         for sample in list_files_by_size(root):
+#             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
+#                 continue
+
+#             tasks.append((sample, root, save_dir))
+
+#     num_processes = max(1, multiprocessing.cpu_count() // 2)
+
+#     with multiprocessing.Pool(processes=num_processes) as pool:
+#         pool.map(process_sample, tasks)
+
+#     print("All tasks are completed.")
+
+# if __name__ == '__main__':
+#     main()
+# #---------------------------------------------------------------------------------------------- label single processing
+# if __name__ == "__main__":
+    
+#     sample_dir = '../sample/perturbated_labling_sample/adding_nop/'
+#     save_dir = '../sample/perturbated_labling_sample/adding_nop+instruction_change/'
+    
+    
+#     for root, dirs, files in os.walk(sample_dir):
+#         # 'OK' 디렉토리가 있는 경우 건너뛰기
+#         if 'ok' in root.split(os.sep):
+#             continue
+            
+# #         if len(files)<=10:
+# #             continue
+            
+#         print(save_dir+root.split('/')[-1])
+        
+#         samples = list_files_by_size(root)
+#         create_directory(save_dir+root.split('/')[-1])
+                
+#         for sample in samples:
+#             if '.ipynb' in sample or '.pickle' in sample or '.txt' in sample or '.zip' in sample or '.' not in sample:
+#                 continue
+                
+# #             if '1c766fa73e8e9e642109da0a68d981f7e4219776fb6ed5f2a2a5b4c618237138.exe' not in sample:
+# #                 continue
+                
+#             if os.path.isfile(save_dir+root.split('/')[-1]+'/'+sample.replace('.exe','_changing.exe')):
+#                 continue
+
+#             print(root, sample)
+
+#             input_filepath = root+'/'+sample
+            
+#             try:
+#                 new_text = disassemble_and_modify(input_filepath, save_dir+root.split('/')[-1])
+#                 print(len(new_text), type(new_text))
+                
+                
+#                 modified_section_names = new_text.keys()
+                
+#                 print(modified_section_names)
+                
+#                 for i,j in enumerate(modified_section_names):
+#                     print(i,j)
+#                 print('----------------------------------------------------')
+                
+#                 if new_text is None:
+#                     print(f"[+] Error : failed to make new_text section.")
+#                 else:
+#                     new_text = modify_headers(input_filepath, new_text)
+#                     print(type(new_text), len(new_text), len(new_text[0]))
+#                     modify_section(input_filepath, new_text, save_dir+root.split('/')[-1]+'/', modified_section_names)
+#             except pefile.PEFormatError:
+#                 continue
+                
+#--------------------------------------------------------------------------- multiprocessing_label
+def process_sample(args):
+    sample, root, save_dir = args
     input_filepath = os.path.join(root, sample)
     output_filename = sample.replace('.exe', '_changing.exe')
     output_filepath = os.path.join(save_dir, output_filename)
-    
+
+    # 이미 파일이 존재하는 경우 건너뜀
     if os.path.isfile(output_filepath):
-        return  # 이미 처리된 파일은 건너뜀
+        return
 
     try:
         new_text = disassemble_and_modify(input_filepath, save_dir)
-
         if new_text is None:
             print(f"[+] Error: Failed to create new_text section for {sample}.")
+            
         else:
+            modified_section_names = new_text.keys()
             new_text = modify_headers(input_filepath, new_text)
-            modify_section(input_filepath, new_text, save_dir+'/')
+            modify_section(input_filepath, new_text, save_dir + '/', modified_section_names)
             
     except pefile.PEFormatError:
         pass
+    
+def list_files_by_size(directory):
+    # Return a list of files in the directory sorted by size
+    files_with_sizes = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            file_path = os.path.join(root, file)
+            if os.path.isfile(file_path):
+                files_with_sizes.append((file, os.path.getsize(file_path), root))
+    # Sort files by size (smallest to largest)
+    files_with_sizes.sort(key=lambda x: x[1])
+    return [file[0] for file in files_with_sizes]  # Return only file names
 
-def worker(input_queue):
-    while True:
-        task = input_queue.get()
-        if task is None:
-            break
-        sample, root, save_dir = task
-        process_sample(sample, root, save_dir)
-        input_queue.task_done()
+def create_directory(dir_path):
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
 
 def main():
-    sample_dir = '../sample/labeling/'
-    save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
+#     sample_dir = '../sample/labeling/'
+#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
     
-    # 작업 큐 생성
-    input_queue = multiprocessing.JoinableQueue()
+    sample_dir = '../sample/perturbated_labling_sample/adding_nop/'
+    save_dir_base = '../sample/perturbated_labling_sample/adding_nop+instruction_change/'
 
-    # CPU 코어 수의 절반만 사용하도록 설정
-    num_processes = max(1, multiprocessing.cpu_count() // 5)
-
-    # 워커 프로세스 생성 및 시작
-    processes = []
-    for _ in range(num_processes):
-        p = multiprocessing.Process(target=worker, args=(input_queue,))
-        p.start()
-        processes.append(p)
+    tasks = []
 
     for root, dirs, files in os.walk(sample_dir):
-        if 'ok' in root.lower().split(os.sep):  # 'OK' 디렉토리를 건너뛰기
+        # 'ok' 디렉토리가 있는 경우 건너뛰기
+        if 'ok' in root.split(os.sep):
             continue
-            
-        if len(files) <= 10:  # 파일이 10개 이하인 디렉토리는 건너뛰기
-            continue
-        
+
+        # 저장할 디렉토리 생성
         save_dir = os.path.join(save_dir_base, os.path.basename(root))
         create_directory(save_dir)
-        
+
+#         # 파일을 파일 크기 순으로 정렬
+        #samples = list_files_by_size(root)
+
         for sample in files:
             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
                 continue
-            
-            input_queue.put((sample, root, save_dir))
 
-    # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
-    input_queue.join()
-    for _ in range(num_processes):
-        input_queue.put(None)
+            tasks.append((sample, root, save_dir))
 
-    # 워커 프로세스 종료
-    for p in processes:
-        p.join()
+    num_processes = max(1, multiprocessing.cpu_count() // 2)
+
+    # 멀티프로세싱 Pool을 사용하여 작업 병렬 실행
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        pool.map(process_sample, tasks)
 
     print("All tasks are completed.")
 
 if __name__ == '__main__':
     main()
+
+
+# def process_sample(args):
+#     sample, root, save_dir = args
+#     input_filepath = os.path.join(root, sample)
+#     output_filename = sample.replace('.exe', '_changing.exe')
+#     output_filepath = os.path.join(save_dir, output_filename)
+
+#     # 이미 파일이 존재하는 경우 건너뜀
+#     if os.path.isfile(output_filepath):
+#         return
+
+#     try:
+#         new_text = disassemble_and_modify(input_filepath, save_dir)
+#         if new_text is None:
+#             print(f"[+] Error: Failed to create new_text section for {sample}.")
+#         else:
+#             #print("len_new_text : ",len(new_text), new_text)
+#             modified_section_names = new_text.keys()
+#             new_text = modify_headers(input_filepath, new_text)
+#             modify_section(input_filepath, new_text, save_dir + '/', modified_section_names)
+            
+#     except pefile.PEFormatError:
+#         pass
+    
+# def list_files_by_size(directory):
+#     # Return a list of files in the directory sorted by size
+#     files_with_sizes = []
+#     for root, dirs, files in os.walk(directory):
+#         for file in files:
+#             file_path = os.path.join(root, file)
+#             if os.path.isfile(file_path):
+#                 files_with_sizes.append((file, os.path.getsize(file_path), root))
+#     # Sort files by size (smallest to largest)
+#     files_with_sizes.sort(key=lambda x: x[1])
+#     return [file[0] for file in files_with_sizes]  # Return only file names
+
+# def create_directory(dir_path):
+#     if not os.path.exists(dir_path):
+#         os.makedirs(dir_path)
+
+# def main():
+#     sample_dir = '../sample/labeling/'
+#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
+
+#     tasks = []
+
+#     for root, dirs, files in os.walk(sample_dir):
+#         # 'ok' 디렉토리가 있는 경우 건너뛰기
+#         if 'ok' in root.split(os.sep):
+#             continue
+
+#         # 저장할 디렉토리 생성
+#         save_dir = os.path.join(save_dir_base, os.path.basename(root))
+#         create_directory(save_dir)
+
+#         # 파일을 파일 크기 순으로 정렬
+#         for sample in files:
+#             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
+#                 continue
+
+#             tasks.append((sample, root, save_dir))
+
+#     # 싱글 프로세싱으로 순차적으로 작업 처리
+#     for task in tasks:
+#         process_sample(task)
+
+#     print("All tasks are completed.")
+
+# if __name__ == '__main__':
+#     main()
