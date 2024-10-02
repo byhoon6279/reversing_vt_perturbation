@@ -74,7 +74,6 @@ def inst_dict_generator(filepath):
             
     return inst_dict
 
-@lru_cache(maxsize=None)
 def find_instruction_context(instructions, target_ip):
     sorted_ips = sorted(instructions.keys())  # 주소값 정렬
     index = sorted_ips.index(target_ip)  # 대상 IP의 인덱스 찾기
@@ -762,8 +761,11 @@ def create_directory(dir_path):
         os.makedirs(dir_path)
 
 def main():
-    sample_dir = '../sample/labeling/'
-    save_dir_base = '../sample/perturbated_labling_sample/instruction_change_new_9/'
+#     sample_dir = '../sample/labeling/'
+#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change_new_9/'
+    
+    sample_dir = '../sample/perturbated_labling_sample/resource_change_1002/'
+    save_dir_base = '../sample/perturbated_labling_sample/rsrc_change+instruction_change_1002/'
     
     #sample_dir = '../sample/perturbated_labling_sample/adding_nop/'
     #save_dir_base = '../sample/perturbated_labling_sample/adding_nop+instruction_change/'
