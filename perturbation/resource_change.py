@@ -84,22 +84,37 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                 if is_utf16le_string(modified_data, start):
                     utf16_text, end = decode_utf16le_string(modified_data, start)
                     
-                    #print(f"UTF-16 LE String Detected: {utf16_text}")
-                    
-                    if  ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',utf16_text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b', utf16_text) and re.findall(r'[^\w\s]', utf16_text) and not re.findall(r'[-+#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',utf16_text)) or \
-                        ('\\' in utf16_text and len(utf16_text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',utf16_text) and len(utf16_text)>5 and not re.findall(r'[0-9]+',utf16_text))\
-                        or (re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}',utf16_text)) and (not re.findall(r'<[^>]+>', utf16_text) and not re.findall(r'=',utf16_text)):
+                    if  (
+                            (re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])', utf16_text)) 
+                            or 
+                            (
+                                re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b', utf16_text)  
+                                and not re.findall(r'[-+#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]', utf16_text)
+                            ) 
+                            or 
+                            (
+                                '\\' in utf16_text 
+                                and len(utf16_text) > 5 
+                                and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]', utf16_text) 
+                                and not re.findall(r'[0-9]+', utf16_text)
+                            )
+                            or 
+                            (
+                                re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}', utf16_text) 
+                                and not re.findall(r'<[^>]+>', utf16_text) 
+                                and not re.findall(r'=', utf16_text)
+                            )
+                        ):
+
                         
-                        #print(f"UTF-16 LE String Detected: {utf16_text}")
-                        # 5자 이상인 경우에만 대문자로 변환
                         if len(modified_data[start:end]) <= len(letters_set):
                             random_list = random.sample(letters_set, len(modified_data[start:end]))
                         else:
                             random_list = random.choices(letters_set, k=len(modified_data[start:end]))
                     
                         modified_text = ''.join(random_list)
-                        #print("  --> ",modified_text)
                         modified_utf16_data = bytearray(modified_text.encode('utf-16le'))
+                        
                     else:
                         # 그렇지 않은 경우, 원래 데이터를 유지
                         modified_utf16_data = modified_data[start:end]
@@ -113,9 +128,9 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                     i += 1
                     
                 end = i
-                text = modified_data[start:end].decode('ascii', errors='ignore')                
+                text = modified_data[start:end].decode('ascii', errors='ignore')             
                 txt_type = identify.tags_from_filename(text.strip())
-
+                
                 if ('.dll' in text.lower() and 'binary' in txt_type) or ('.dll' in text.lower()):
                     text = text.split('.')[0]
                     if text.isupper():
@@ -126,15 +141,42 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         modified_text = new_text.upper().encode('ascii')
                     modified_data[start:end] = modified_text
                     continue
-        
-                elif 'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type or \
-                    ((re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)) or re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b',text) and not re.findall(r'[-+#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=_:&]',text)) or \
-                        ('\\' in text and len(text)>5 and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]',text) and len(text)>5 and not re.findall(r'[0-9]+',text))\
-                        or (re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}',text)) and (not re.findall(r'<[^>]+>', text) and not re.findall(r'=',text)):
+                    
+                                    
+                elif (
+                        # 'image', 'plain-text', 'audio', 'html' 문자열이 txt_type에 포함된 경우
+                        'image' in txt_type or 'plain-text' in txt_type or 'audio' in txt_type or 'html' in txt_type 
+
+                        # 또는 포맷 문자열(%d, %f 등)이 포함된 경우 또는 5자 이상의 영숫자와 특정 기호가 포함된 경우
+                        or (
+                            re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])', text)  # 포맷 문자열 검사
+                            or 
+                            (  # 영숫자 및 특정 기호들이 5자 이상인 경우
+                                re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b', text) 
+                                and not re.findall(r'[-+#/\?^@\"※~ㆍ』;*%\{\}\<\>‘|\[\]`\'…》\”\“\’·$=:&]', text)  # 특정 특수 문자가 없는지 확인
+                            )
+                        )
+
+                        # 또는 백슬래시(\)가 포함되어 있고, 길이가 5자 이상이며 특정 특수 문자와 숫자가 포함되지 않은 경우
+                        or (
+                            '\\' in text 
+                            and len(text) > 5 
+                            and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]', text)  # 특정 특수 문자가 없는지 확인
+                            and not re.findall(r'[0-9]+', text)  # 숫자가 없는지 확인
+                        )
+
+                        # 또는 도메인 패턴을 포함한 텍스트
+                        or (
+                            re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}', text)  # 도메인 패턴 (예: example.com)
+                            and not re.findall(r'<[^>]+>', text)  # HTML 태그가 없는지 확인
+                            and not re.findall(r'=', text)  # 등호(=)가 없는지 확인
+                        )
+                    ):
         
                     format_specifier = ''
-            
+                    
                     if text in api_list:
+                        #print("api?? : ",text)
                         modified_text = modified_data[start:end]
                         modified_text = bytes(modified_text)
                         modified_data[start:end] = modified_text
@@ -146,8 +188,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         text = text.split(format_specifier)[0]
                         
                         format_specifier = format_specifier + last_text
-                    
-                    # 샘플링 크기를 letters_set 길이로 제한
+
                     if len(text) <= len(letters_set):
                         random_list = random.sample(letters_set, len(text))
                     else:
@@ -246,13 +287,14 @@ def change_resource_case(file_path, output_path):
 
     pe.close()
     
+#----------------------------------------------------single_processing_main_function  
 # if __name__ == "__main__":
     
-#     sample_dir = '../evaluation//clamav/adding_nop_100/'
-#     save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
+# #     sample_dir = '../evaluation//clamav/adding_nop_100/'
+# #     save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
     
-# #     sample_dir = '../sample/benign/'
-# #     save_dir = '../evaluation/perturbated_sample_benign/'
+#     sample_dir = '../sample/benign/'
+#     save_dir = '../evaluation/perturbated_sample_benign/'
     
 #     samples = list_files_by_size(sample_dir)
 #     create_directory(save_dir)
@@ -275,71 +317,66 @@ def change_resource_case(file_path, output_path):
 #         except ValueError: # 샘플 확인 -> 현재는 ValueError 나는 샘플 없음
 #             continue
 
-#----------------------------------------------------multi_processing_main_function
 
-def process_sample(sample, root, save_dir):
-    input_filepath = os.path.join(root, sample)
+#----------------------------------------------------multi_processing_main_function        
+def process_sample(args):
+    sample, root, save_dir = args
+    file_path = os.path.join(root, sample)
+#     output_filename_1 = sample.replace('.exe', '_adding_'+str(number_of_nop)+'.exe')
+#     output_filename_2 = sample.replace('.exe', '_nop_fin_'+str(number_of_nop)+'.exe')
+#     output_filepath_1 = os.path.join(save_dir, output_filename_1)
+#     output_filepath_2 = os.path.join(save_dir, output_filename_2)
+
+#     if os.path.isfile(output_filepath_1) or os.path.isfile(output_filepath_2):
+#         return
+
     try:
-        change_resource_case(input_filepath, save_dir)
+        change_resource_case(file_path, save_dir)
         print(f"Resource case changed for {sample}\n")
         
     except pefile.PEFormatError:
-        pass
-    
-#     except ValueError:
-#         pass
-
-def worker(input_queue):
-    while True:
-        task = input_queue.get()
-        if task is None:
-            break
-        sample, root, save_dir = task
-        process_sample(sample, root, save_dir)
-        input_queue.task_done()
+        pass      
 
 def main():
-    sample_dir = '../sample/labeling/'
-    save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
+#     sample_dir = '../sample/labeling/'
+#     save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
+
+#     sample_dir = '../sample/perturbated_labling_sample/instruction_change/'
+#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
     
-    # 작업 큐 생성
-    input_queue = multiprocessing.JoinableQueue()
-
-    # CPU 코어 수의 절반만 사용하도록 설정
-    num_processes = max(1, multiprocessing.cpu_count() // 5)
-
-    # 워커 프로세스 생성 및 시작
-    processes = []
-    for _ in range(num_processes):
-        p = multiprocessing.Process(target=worker, args=(input_queue,))
-        p.start()
-        processes.append(p)
+#     sample_dir = '../sample/perturbated_labling_sample/adding_nop/'
+#     save_dir_base = '../sample/perturbated_labling_sample/adding_nop+resource_change/'
+    
+#     sample_dir = '../sample/perturbated_labling_sample/adding_nop+instruction_change/'
+#     save_dir_base = '../sample/perturbated_labling_sample/adding_nop+instruction_change+resource_change/'
+    
+    sample_dir = '../sample/perturbated_labling_sample/instruction_change+adding_nop_partial/'
+    save_dir_base = '../sample/perturbated_labling_sample/instruction_change+adding_nop_partial+resource_change/'
+    
+    tasks = []
 
     for root, dirs, files in os.walk(sample_dir):
-        if 'ok' in root.lower().split(os.sep):  # 'OK' 디렉토리를 건너뛰기
+        if 'ok' in root.split(os.sep):
             continue
-            
-        if len(files) <= 10:  # 파일이 10개 이하인 디렉토리는 건너뛰기
-            continue
+
+#         if len(files) <= 10:
+#             continue
         
         save_dir = os.path.join(save_dir_base, os.path.basename(root))
-        create_directory(save_dir)
+        create_directory(save_dir + '/')
         
-        for sample in files:
-            if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample) or '_' in sample:
+        for sample in list_files_by_size(root):
+            if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
                 continue
-            input_queue.put((sample, root, save_dir))
+                
+            tasks.append((sample, root, save_dir))
 
-    # 모든 작업이 완료되면 None을 넣어 워커 프로세스를 종료시킴
-    input_queue.join()
-    for _ in range(num_processes):
-        input_queue.put(None)
+    num_processes = max(1, multiprocessing.cpu_count() // 2)
 
-    # 워커 프로세스 종료
-    for p in processes:
-        p.join()
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        pool.map(process_sample, tasks)
 
     print("All tasks are completed.")
 
 if __name__ == '__main__':
-    main()
+    main()        
