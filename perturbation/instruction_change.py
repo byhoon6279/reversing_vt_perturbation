@@ -242,7 +242,8 @@ def disassemble_and_modify(filepath, output_filepath):
                     op_1 = operands.split(',')[-1]
 
                     instruction = pe_data[text_section.PointerToRawData + (instr.ip-(image_base+virtual_address)):text_section.PointerToRawData + (instr.next_ip-(image_base+virtual_address))]
-
+                   
+                        
                     if bitness == 64 and ((op_0 not in reg_64)):
                         new_text+=  instruction
                         continue
@@ -251,7 +252,8 @@ def disassemble_and_modify(filepath, output_filepath):
                         new_text+=  instruction
                         continue
 
-                    if bool(re.search(r"[\[\]]", operands)) or 'rbp' in operands or 'rsp' in operands or 'esp' in operands or 'ebp' in operands:          
+                    if bool(re.search(r"[\[\]]", operands)) or 'rbp' in operands or 'rsp' in operands or 'esp' in operands or 'ebp' in operands:     
+                        #print(hex(instr.ip), asm_code)
                         new_text+=  instruction
                         continue
 
@@ -369,6 +371,7 @@ def disassemble_and_modify(filepath, output_filepath):
                         continue
 
                     elif 'mov' == op:
+                        #print(hex(instr.ip), asm_code)
                         if op_0 == op_1:
                             xor_list.append(instr)
                             new_ins = 'nop;nop'
@@ -427,6 +430,7 @@ def disassemble_and_modify(filepath, output_filepath):
     #                                 continue
 
                         if bitness ==32:
+                            
 
                             if (len(op_0) == 2) or (len(op_1) == 2):
                                 new_text += bytes.fromhex((section_data[instr.ip:instr.ip+instr.len]))
@@ -522,44 +526,59 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
     tmp_file = file_path.replace(file_format, "_tmp"+file_format)
     with open(tmp_file, "rb") as tmp:
         tmp_binary = tmp.read()
+        print(len(tmp_binary))
         
     section_idx = 0
-    section_cnt = len(modified_section_names)
+    
+    #section_cnt = len(modified_section_names)
     new_binary = b''
-    #print("modified_section_names : ",modified_section_names)
-    for section in pe.sections:
-        for section_cnt, section_name in enumerate(modified_section_names):
-            if section_name.lower() == section.Name.strip(b'\x00').lower():    
+    
+    for idx, section in enumerate(pe.sections):
+        last_modified = 0
+        non_match = 0
+        for section_name in modified_section_names:
+            if section_name.lower() == section.Name.strip(b'\x00').lower():  
                 text_section = section
-                if section_cnt == 0:
+                print("match : ", section_name, section.Name.strip(b'\x00').lower())
+                
+                if section_idx == 0:
+                    print("header")
                     old_rawPointer = text_section.PointerToRawData
                     new_binary = tmp_binary[:old_rawPointer]
                     new_binary += new_text[section_idx]
-                    new_binary += tmp_binary[text_section.PointerToRawData+text_section.SizeOfRawData:]
-
+                    section_idx =1
+                    
                 else:
                     new_binary += new_text[section_idx]
-                    new_binary += tmp_binary[text_section.PointerToRawData+text_section.SizeOfRawData:]
                 
-                section_idx += 1
-                section_cnt -= 1
-                #print(section_idx, section_cnt)
-                if section_cnt == 0 or section_cnt == -1:
-                    break
-                    
+                modified_section_names.remove(section_name)
+                
+                if not modified_section_names:
+                    last_modified = 1
+                break
+
             else:
-                if not new_binary:
-                    old_rawPointer = section.PointerToRawData
-                    new_binary = tmp_binary[:old_rawPointer]
-                    new_binary = new_text
-                    
-            new_binary += tmp_binary[section.PointerToRawData+section.SizeOfRawData:]
+                non_match = 1
+
+        if non_match ==1 or ():
+            print("non match middel section: ",section.Name.strip(b'\x00').lower())
+            new_binary += tmp_binary[section.PointerToRawData:section.PointerToRawData + section.SizeOfRawData]
+            
+        if not modified_section_names and last_modified != 1:
+            print("non match end section: ",section.Name.strip(b'\x00').lower())
+            new_binary += tmp_binary[section.PointerToRawData:section.PointerToRawData + section.SizeOfRawData]
+            
     
+    if idx == len(pe.sections) - 1: #overlay
+        print("   마지막이야?")
+        new_binary += tmp_binary[section.PointerToRawData+section.SizeOfRawData:]
+        #print(len(tmp_binary[section.PointerToRawData+section.SizeOfRawData:]))
+        
     print("fp : ",file_path, len(new_binary))
     
     with open(file_path.replace(file_format, "_changing"+file_format), "wb") as f:
         f.write(new_binary)
-        
+    print("last : ",len(new_binary))    
     os.remove(tmp_file)
     print("save : ",save_dir)
     file_name = file_path.split('/')[-1].replace(file_format, "_changing"+file_format)
@@ -739,6 +758,7 @@ def process_sample(args):
         else:
             modified_section_names = new_text.keys()
             new_text = modify_headers(input_filepath, new_text)
+            print(len(new_text))
             modify_section(input_filepath, new_text, save_dir + '/', modified_section_names)
             
     except pefile.PEFormatError:
@@ -785,7 +805,7 @@ def main():
         #samples = list_files_by_size(root)
 
         for sample in files:
-#             if 'bbdf913509673e6abdae0630c5abb5d0ca2eb14ab0fae0a48af3cdf20c5c4f93' not in sample:
+#             if 'db94e3e4b9a539c17ecbdf66d02fc71b626a08a7b7e741856ca363a09720f9de' not in sample:
 #                 continue
             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
                 continue
