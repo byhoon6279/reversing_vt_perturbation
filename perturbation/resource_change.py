@@ -69,6 +69,7 @@ def decode_utf16le_string(data, start):
 def modify_data_sections(section_name = None, data = None , function_list = None):
     
     modified_data = bytearray(data)
+    print("mdd len : ",len(modified_data))
     i = 0
     letters_set = (string.ascii_lowercase + string.digits) * 5
 
@@ -105,12 +106,12 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 and not re.findall(r'=', utf16_text)
                             )
                         ):
-
                         
                         if len(modified_data[start:end]) <= len(letters_set):
-                            random_list = random.sample(letters_set, len(modified_data[start:end]))
+                            random_list = random.sample(letters_set, int(len(modified_data[start:end])/2))
+                            
                         else:
-                            random_list = random.choices(letters_set, k=len(modified_data[start:end]))
+                            random_list = random.choices(letters_set, k=int(len(modified_data[start:end])/2))
                     
                         modified_text = ''.join(random_list)
                         modified_utf16_data = bytearray(modified_text.encode('utf-16le'))
@@ -139,6 +140,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                     else:
                         new_text = text + '.dll'
                         modified_text = new_text.upper().encode('ascii')
+                        
                     modified_data[start:end] = modified_text
                     continue
                     
@@ -218,7 +220,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
             i = end  # i를 end로 설정하여 다음 블록으로 넘어가도록 함
             continue
 
-    print(f"Returning modified data for section: {section_name}")
+    print(f"Returning modified data for section: {section_name}, {len(modified_data)}")
     return bytes(modified_data)
 
 
@@ -256,7 +258,7 @@ def change_resource_case(file_path, output_path):
                 
                 section_data = pe_data[section_start:section_end]
                 modified_rdata = modify_data_sections(section.Name.decode().strip('\x00'), section_data, function_list)
-                print(f"Modified section data returned for {section_name}")
+                print(f"Modified section data returned for {section_name}, {len(section_data)}")
 
                 # 중요한 부분: 수정된 데이터를 modified_data에 추가
                 modified_data += modified_rdata
@@ -338,8 +340,8 @@ def process_sample(args):
         pass      
 
 def main():
-#     sample_dir = '../sample/labeling/'
-#     save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
+    sample_dir = '../sample/labeling/'
+    save_dir_base = '../sample/perturbated_labling_sample/resource_change_1002/'
 
 #     sample_dir = '../sample/perturbated_labling_sample/instruction_change/'
 #     save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
@@ -350,8 +352,8 @@ def main():
 #     sample_dir = '../sample/perturbated_labling_sample/adding_nop+instruction_change/'
 #     save_dir_base = '../sample/perturbated_labling_sample/adding_nop+instruction_change+resource_change/'
     
-    sample_dir = '../sample/perturbated_labling_sample/instruction_change+adding_nop_partial/'
-    save_dir_base = '../sample/perturbated_labling_sample/instruction_change+adding_nop_partial+resource_change/'
+#     sample_dir = '../sample/perturbated_labling_sample/instruction_change+adding_nop_partial/'
+#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change+adding_nop_partial+resource_change/'
     
     tasks = []
 
@@ -366,6 +368,10 @@ def main():
         create_directory(save_dir + '/')
         
         for sample in list_files_by_size(root):
+            
+            #if '29b596fa00427033cad6bedea03ea53ff8954b343ab801cefbff047b4a96c094' not in sample:
+                #continue
+            
             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
                 continue
                 
