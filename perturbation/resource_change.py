@@ -69,7 +69,7 @@ def decode_utf16le_string(data, start):
 def modify_data_sections(section_name = None, data = None , function_list = None):
     
     modified_data = bytearray(data)
-    print("mdd len : ",len(modified_data))
+    #print("mdd len : ",len(modified_data))
     i = 0
     letters_set = (string.ascii_lowercase + string.digits) * 5
 
@@ -240,33 +240,33 @@ def change_resource_case(file_path, output_path):
 
     try:
         for section_idx, section in enumerate(pe.sections):
-            section_name = section.Name.decode().strip('\x00').lower()
-            print(section_idx, section_name)
-            
+            section_name = section.Name.decode('utf-8', errors='ignore').strip('\x00').lower()
+            #print(section_idx, section_name)
+
             if section_idx == 0:
                 modified_data += pe.header
 
             if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
                 section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
                 section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
-                
+
                 print(f"Processing section: {section_name}")
-                
+
                 section_start = section.PointerToRawData
                 section_end = section_start + section.SizeOfRawData
-                
+
                 section_data = pe_data[section_start:section_end]
-                modified_rdata = modify_data_sections(section.Name.decode().strip('\x00'), section_data, function_list)
+                modified_rdata = modify_data_sections(section.Name.decode('utf-8', errors='ignore').strip('\x00'), section_data, function_list)
                 print(f"Modified section data returned for {section_name}, {len(section_data)}")
 
                 # 중요한 부분: 수정된 데이터를 modified_data에 추가
                 modified_data += modified_rdata
-                
+
             else:
                 print(f"Skipping section: {section_name}")
                 section_start = section.PointerToRawData
                 section_end = section_start + section.SizeOfRawData
-                
+
                 section_data = pe_data[section_start:section_end]
                 modified_data += section_data
 
@@ -345,8 +345,8 @@ def main():
 #     sample_dir = '../sample/benign_AE/instruction_change'
 #     save_dir_base = '../sample/benign_AE/instruction_change+resource_change/'
 
-    #sample_dir = '../sample/Dike_malware/'
-    #save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
+#     sample_dir = '../sample/Dike_malware/'
+#     save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
     
     sample_dir = '../sample/perturbated_labling_sample/instruction_change/'
     save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
@@ -364,8 +364,8 @@ def main():
         create_directory(save_dir + '/')
         
         for sample in list_files_by_size(root):
-            #if '29b596fa00427033cad6bedea03ea53ff8954b343ab801cefbff047b4a96c094' not in sample:
-                #continue
+#             if '4e3dc8abbdfb0f678a7b19a07b7972ac6ad850dfac68e53d6b1081551e647e66' not in sample:
+#                 continue
             
             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
                 continue

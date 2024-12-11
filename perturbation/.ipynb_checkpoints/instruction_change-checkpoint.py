@@ -168,9 +168,10 @@ def disassemble_and_modify(filepath, output_filepath):
     mov_64 = ['push op1|pop op0|nop','nop|push op1|pop op0','push op1|nop|pop op0']
     
     mov_32 = ['push op1|pop op0'] # mov reg reg
-    mov_32_0 = ['pushfd|xor op0,op0|popfd|nop','pushfd|sub op0,op0|popfd|nop','pushfd|and op0,0|popfd'] # mov reg 0
+    mov_32_0 = ['pushfd|xor op0,op0|popfd|nop','pushfd|sub op0,op0|popfd','pushfd|and op0,0|popfd'] # mov reg 0
     mov_32_1= ['pushfd| xor op0,op0|inc op0|popfd'] # mov reg 1
-    mov_32_hex = ['push op1|pop op0|nop|nop','nop|nop|push op1|pop op0','nop|push op1|nop|pop op0','push op1|nop|pop op0|nop','nop|push op1|pop op0|nop','push op1|nop|nop|pop op0'] # mov reg hex
+    #mov_32_hex = ['push op1|pop op0|nop|nop','nop|nop|push op1|pop op0','nop|push op1|nop|pop op0','push op1|nop|pop op0|nop','nop|push op1|pop op0|nop','push op1|nop|nop|pop op0'] # mov reg hex
+    mov_32_hex = ['nop|push op1|pop op0|nop|nop', 'nop|nop|push op1|pop op0|nop', 'nop|nop|nop|push op1|pop op0', 'nop|push op1|nop|nop|pop op0', 'nop|nop|push op1|nop|pop op0', 'push op1|nop|pop op0|nop|nop', 'push op1|nop|nop|pop op0|nop', 'push op1|nop|nop|nop|pop op0', 'nop|push op1|nop|pop op0|nop']
     print("89 : ",filepath)
     pe = pefile.PE(filepath)
     pe_data = open(filepath, "rb").read()
@@ -263,6 +264,12 @@ def disassemble_and_modify(filepath, output_filepath):
                         mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
                         new_text+=  mc_code
                         continue
+                        
+                    if 'nop' == op:
+                        machine_code = assemble_asm('int3', KS_ARCH_X86, bit)
+                        mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
+                        new_text+=  mc_code
+                        continue
 
                     if 'add' == op:
                         if ((op_0 in reg_32 and op_1 in reg_32) or (op_0 in reg_64 and op_1 in reg_64)):
@@ -307,14 +314,14 @@ def disassemble_and_modify(filepath, output_filepath):
                     if 'sub' == op:
                        # print(asm_code)
                         if ((op_0 in reg_32 and op_1 in reg_32) or (op_0 in reg_64 and op_1 in reg_64)):
-                            
-                            new_ins = 'sbb '+op_0+', '+op_1
-                            machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
-                            mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
-                            #print(asm_code, len(instruction), len(mc_code))
-                            if (len(mc_code) == len(instruction)):
-                                new_text += mc_code
-                                continue
+                            if op_0 == op_1:
+                                new_ins = 'xor '+op_0+', '+op_1
+                                machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
+                                mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
+                                #print(asm_code, len(instruction), len(mc_code))
+                                if (len(mc_code) == len(instruction)):
+                                    new_text += mc_code
+                                    continue
                                 
                             else:
                                 new_text += instruction
@@ -360,9 +367,8 @@ def disassemble_and_modify(filepath, output_filepath):
 
                             mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))    
                         new_text+=  mc_code
-
                         continue
-
+                        
                     elif 'test' == op and op_0 == op_1:   
                         new_ins = 'or '+op_0+','+op_1
 
@@ -370,6 +376,16 @@ def disassemble_and_modify(filepath, output_filepath):
                         mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
                         new_text += mc_code
                         continue
+                        
+                    
+                    elif 'or' == op and op_0 == op_1:   
+                        new_ins = 'test '+op_0+','+op_1
+
+                        machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
+                        mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
+                        new_text += mc_code
+                        continue
+
 
                     elif 'mov' == op:
                         #print(hex(instr.ip), asm_code)
@@ -759,8 +775,8 @@ def process_sample(args):
     output_filepath = os.path.join(save_dir, output_filename)
 
     #이미 파일이 존재하는 경우 건너뜀
-#     if os.path.isfile(output_filepath):
-#         return
+    if os.path.isfile(output_filepath):
+        return
 
     try:
         new_text = disassemble_and_modify(input_filepath, save_dir)
@@ -798,8 +814,11 @@ def main():
 #     sample_dir = '../sample/Dike_benign/'
 #     save_dir_base = '../sample/benign_AE/'
     
-    sample_dir = '../sample/Dike_malware/'
-    save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
+#     sample_dir = '../sample/Dike_malware/'
+#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
+    
+    sample_dir = '../sample/perturbated_labling_sample/resource_change/'
+    save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
     
 #     sample_dir = '../sample/perturbated_labling_sample/resource_change_1002/'
 #     save_dir_base = '../sample/perturbated_labling_sample/rsrc_change+instruction_change_1002/'
