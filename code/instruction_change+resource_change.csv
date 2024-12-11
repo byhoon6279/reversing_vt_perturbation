@@ -1,0 +1,11 @@
+fam,type,cnt
+win.packed.zbot -> win.packed.fareit,[daily.ldb] -> [daily.ldb],3
+win.trojan.smartfortress -> win.dropper.winwebsec,[daily.ldb] -> [daily.ldb],3
+win.packed.fareit -> win.packed.zbot,[daily.ldb] -> [daily.ldb],3
+win.packed.generickdz -> win.trojan.generickdz,[daily.ldb] -> [daily.ldb],1
+win.trojan.dalexis -> win.trojan.ransom,[main.mdb] -> [main.mdb],2
+win.trojan.agent -> win.dropper.undefined,[main.mdb] -> [main.ldb],1
+win.packed.zbot -> win.trojan.zbot,[daily.ldb] -> [main.mdb],2
+win.packed.zbot -> win.ransomware.zbot,[daily.ldb] -> [daily.ldb],1
+win.malware.qbot -> win.packed.zbot,[main.hsb] -> [daily.ldb],1
+win.dropper.zeus -> win.trojan.zbot,[daily.ldb] -> [daily.ldb],2

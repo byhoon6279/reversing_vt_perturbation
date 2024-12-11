@@ -68,11 +68,16 @@ def copy_matching_files(sampled_files, source_directory, destination_directory, 
                 missing_files.append(file_name)
 
 # 경로 설정
-dike_benign_directory = "../sample/Dike_benign/"
+# dike_benign_directory = "../sample/Dike_benign/"
+# dir1_directory = "../evaluation/VT_thorw_sample/benign/"
+# source_directory = "../sample/benign_AE/instruction_change+resource_change/"
+# destination_directory = "../evaluation/VT_thorw_sample/benign_AE/"
+sample_size = 250
+
+dike_benign_directory = "../sample/Dike_malware/"
 dir1_directory = "../evaluation/VT_thorw_sample/benign/"
 source_directory = "../sample/benign_AE/instruction_change+resource_change/"
 destination_directory = "../evaluation/VT_thorw_sample/benign_AE/"
-sample_size = 250
 
 # 1단계: Dike_benign에서 250개 샘플링하여 dir1_directory로 복사
 sampled_files = sample_and_copy_files(dike_benign_directory, dir1_directory, sample_size)

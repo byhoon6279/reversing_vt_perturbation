@@ -1,0 +1,17 @@
+fam,type,cnt
+win.trojan.agent -> win.trojan.fakeav,[main.mdb] -> [main.mdb],12
+win.trojan.fakesec -> win.malware.unsafe,[main.ndb] -> [main.ldb],56
+win.packed.fareit -> win.dropper.zeus,[daily.ldb] -> [daily.ldb],10
+win.trojan.fakeav -> win.trojan.fakealert,[main.mdb] -> [main.mdb],6
+win.trojan.tepfer -> win.trojan.zbot,[main.mdb] -> [main.mdb],1
+win.downloader.dalexis -> win.trojan.agent,[main.ndb] -> [main.mdb],2
+win.trojan.agent -> win.packed.zeroaccess,[main.hsb] -> [daily.ldb],4
+win.trojan.dalexis -> win.trojan.agent,[main.mdb] -> [main.mdb],2
+win.trojan.upatre -> win.trojan.zbot,[main.ndb] -> [main.ldb],2
+win.trojan.595790 -> win.trojan.fakeav,[main.mdb] -> [main.mdb],2
+win.trojan.agent -> win.dropper.undefined,[main.mdb] -> [main.ldb],1
+win.trojan.tepfer -> win.trojan.jorik,[main.mdb] -> [main.mdb],1
+win.malware.qbot -> win.packed.zbot,[main.hsb] -> [daily.ldb],1
+win.spyware.zbot -> win.trojan.zbot,[main.mdb] -> [main.mdb],1
+win.trojan.fakeav -> win.trojan.relhis,[main.ndb] -> [main.ldb],1
+win.trojan.zbot -> win.dropper.zeus,[main.hdb] -> [daily.ldb],1
