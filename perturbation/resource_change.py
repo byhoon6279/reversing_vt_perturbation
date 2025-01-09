@@ -287,39 +287,7 @@ def change_resource_case(file_path, output_path):
         f.write(modified_data)
 
     pe.close()
-    
-#----------------------------------------------------single_processing_main_function  
-# if __name__ == "__main__":
-    
-# #     sample_dir = '../evaluation//clamav/adding_nop_100/'
-# #     save_dir = '../evaluation/clamav/adding_nop_100+resource_change_involve_data/'
-    
-#     sample_dir = '../sample/benign/'
-#     save_dir = '../evaluation/perturbated_sample_benign/'
-    
-#     samples = list_files_by_size(sample_dir)
-#     create_directory(save_dir)
-
-#     for sample in samples:
-        
-# #         if '620bae1ab9de6fa46fe9eae40169f00e74374d9df32bc87c1a6a2954a70a6dce_nop_fin_100' not in sample:
-# #             continue
-
-# #         if '.ipynb_checkpoints' in sample or ('.exe' not in sample and '.dll' not in sample): #or 'calc' not in sample:)
-# #             continue
-#         try:   
-#             change_resource_case(sample_dir+sample, save_dir)
-#             print(f"Resource case changed for {sample}","\n")
-#             #print(sample_dir+sample, save_dir)
-            
-#         except pefile.PEFormatError:
-#             continue
-            
-#         except ValueError: # 샘플 확인 -> 현재는 ValueError 나는 샘플 없음
-#             continue
-
-
-#----------------------------------------------------multi_processing_main_function        
+       
 def process_sample(args):
     sample, root, save_dir = args
     file_path = os.path.join(root, sample)
