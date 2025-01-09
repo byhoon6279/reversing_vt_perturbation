@@ -348,8 +348,14 @@ def main():
 #     sample_dir = '../sample/Dike_malware/'
 #     save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
     
-    sample_dir = '../sample/perturbated_labling_sample/instruction_change/'
-    save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
+    #sample_dir = '../sample/perturbated_labling_sample/instruction_change/'
+    #save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
+    
+#     sample_dir = '../Share_malware/Seed_malware'
+#     save_dir_base = '../Share_malware/AE/resource_change/'
+    
+    sample_dir = '../Share_malware/AE/instruction_change'
+    save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
     
     tasks = []
 
@@ -364,12 +370,13 @@ def main():
         create_directory(save_dir + '/')
         
         for sample in list_files_by_size(root):
-#             if '4e3dc8abbdfb0f678a7b19a07b7972ac6ad850dfac68e53d6b1081551e647e66' not in sample:
+#             if 'VirusShare_f577d2b12698dc9fbe644dac12d48e50_changing.exe' not in sample:
 #                 continue
             
-            if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
+            print(sample)
+            if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']): #or '.' not in sample:
                 continue
-                
+            
             tasks.append((sample, root, save_dir))
 
     num_processes = max(1, multiprocessing.cpu_count() // 2)
