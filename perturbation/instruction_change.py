@@ -775,9 +775,9 @@ def process_sample(args):
     output_filename = sample.replace('.exe', '_changing.exe')
     output_filepath = os.path.join(save_dir, output_filename)
 
-#     #이미 파일이 존재하는 경우 건너뜀
-#     if os.path.isfile(output_filepath):
-#         return
+    #이미 파일이 존재하는 경우 건너뜀
+    if os.path.isfile(output_filepath):
+        return
 
     try:
         new_text = disassemble_and_modify(input_filepath, save_dir)
