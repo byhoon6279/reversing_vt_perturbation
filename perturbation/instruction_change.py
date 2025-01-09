@@ -542,7 +542,7 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
     print(file_path)
     with open(file_path, "rb") as tmp:
         tmp_binary = tmp.read()
-        print("pe size : ",len(tmp_binary))
+        print("ending pe size : ",len(tmp_binary))
 
     tmp_file = file_path.replace(file_format, "_tmp"+file_format)
     
@@ -559,9 +559,10 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
         last_modified = 0
         non_match = 0
         for section_name in modified_section_names:
-            if section_name.lower() == str(section.SizeOfRawData) + '_' + section.Name.rstrip(b'\x00').decode('utf-8', errors='ignore'):  
+            #print("ending : ",section_name, str(section.SizeOfRawData) + '_' + section.Name.rstrip(b'\x00').decode('utf-8', errors='ignore'), section_name==str(section.SizeOfRawData) + '_' + section.Name.rstrip(b'\x00').decode('utf-8', errors='ignore'))
+            if section_name.lower() == str(section.SizeOfRawData) + '_' + section.Name.rstrip(b'\x00').decode('utf-8', errors='ignore').lower():  
                 text_section = section
-                print("match : ", section_name, section.Name.strip(b'\x00').lower(), section_idx)
+                print("ending match : ", section_name, section.Name.strip(b'\x00').lower(), section_idx)
                 
                 if section_idx == 0:
                     print("  header")
@@ -774,9 +775,9 @@ def process_sample(args):
     output_filename = sample.replace('.exe', '_changing.exe')
     output_filepath = os.path.join(save_dir, output_filename)
 
-    #이미 파일이 존재하는 경우 건너뜀
-    if os.path.isfile(output_filepath):
-        return
+#     #이미 파일이 존재하는 경우 건너뜀
+#     if os.path.isfile(output_filepath):
+#         return
 
     try:
         new_text = disassemble_and_modify(input_filepath, save_dir)
@@ -817,14 +818,20 @@ def main():
 #     sample_dir = '../sample/Dike_malware/'
 #     save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
     
-    sample_dir = '../sample/perturbated_labling_sample/resource_change/'
-    save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
+#     sample_dir = '../sample/perturbated_labling_sample/resource_change/'
+#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
     
 #     sample_dir = '../sample/perturbated_labling_sample/resource_change_1002/'
 #     save_dir_base = '../sample/perturbated_labling_sample/rsrc_change+instruction_change_1002/'
     
     #sample_dir = '../sample/perturbated_labling_sample/adding_nop/'
     #save_dir_base = '../sample/perturbated_labling_sample/adding_nop+instruction_change/'
+    
+    sample_dir = '../Share_malware/Seed_malware'
+    save_dir_base = '../Share_malware/AE/instruction_change/'
+    
+#     sample_dir = '../Share_malware/AE/resource_change'
+#     save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
 
     tasks = []
 
@@ -841,9 +848,9 @@ def main():
         #samples = list_files_by_size(root)
 
         for sample in files:
-#             if 'ef5c503eb7956760df0bc85dfa9a6b37c273ef9ca5d36e61b3bd5b56d58f49d' not in sample:
+#             if 'VirusShare_f577d2b12698dc9fbe644dac12d48e50.exe' not in sample:
 #                 continue
-            if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']) or '.' not in sample:
+            if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']):# or '.' not in sample:
                 continue
 
             tasks.append((sample, root, save_dir))
