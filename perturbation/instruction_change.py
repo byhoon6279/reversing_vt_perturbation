@@ -355,19 +355,26 @@ def disassemble_and_modify(filepath, output_filepath):
                         if op_0 in reg_64 and op_1 in reg_64:
                             new_text+=  instruction
                             continue
+                            
+                        if op_0 == op_1:
 
-                        new_ins = 'sub '+op_0+','+op_1
-                        machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
-                        mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))    
-
-                        if len(machine_code)<len(instruction):
-                            n_machine_code = machine_code
-                            for i in range(0,len(instruction)-len(machine_code)):
-                                n_machine_code.append(0)
-
+                            new_ins = 'sub '+op_0+','+op_1
+                            machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
                             mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))    
-                        new_text+=  mc_code
-                        continue
+
+                            if len(machine_code)<len(instruction):
+                                n_machine_code = machine_code
+                                for i in range(0,len(instruction)-len(machine_code)):
+                                    n_machine_code.append(0)
+
+                                mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))  
+                            #print(asm_code, new_ins)
+                            new_text+=  mc_code
+                            continue
+                            
+                        else:
+                            new_text+=  instruction
+                            continue
                         
                     elif 'test' == op and op_0 == op_1:   
                         new_ins = 'or '+op_0+','+op_1
@@ -410,6 +417,12 @@ def disassemble_and_modify(filepath, output_filepath):
                                 change_instr = change_instr.replace('|',';')
                                 machine_code = assemble_asm(change_instr, KS_ARCH_X86, bit)
                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
+                                
+                                if len(instruction)>len(mc_code):
+                                    mc_code+=b'\x90'
+                                
+                                #print(asm_code, change_instr, len(instruction), len(mc_code))
+                                
                                 new_text += mc_code
                                 continue
 
@@ -421,6 +434,10 @@ def disassemble_and_modify(filepath, output_filepath):
                                 change_instr = change_instr.replace('|',';')
                                 machine_code = assemble_asm(change_instr, KS_ARCH_X86, bit)
                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
+                                
+                                if len(instruction)>len(mc_code):
+                                    mc_code+=b'\x90'
+                                    
                                 new_text += mc_code
                                 continue
 
@@ -433,7 +450,9 @@ def disassemble_and_modify(filepath, output_filepath):
                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
                                 
                                 #print(asm_code,len(instruction), change_instr,len(mc_code))
-                                
+                                if len(instruction)>len(mc_code):
+                                    mc_code+=b'\x90'
+                                    
                                 new_text += mc_code
                                 continue
 
@@ -624,14 +643,14 @@ def main():
     #sample_dir = '../sample/perturbated_labling_sample/adding_nop/'
     #save_dir_base = '../sample/perturbated_labling_sample/adding_nop+instruction_change/'
     
-    sample_dir = '../Share_malware/Seed_malware'
-    save_dir_base = '../Share_malware/AE/instruction_change/'
+#     sample_dir = '../Share_malware/Seed_malware'
+#     save_dir_base = '../Share_malware/AE/instruction_change/'
     
 #     sample_dir = '../Share_malware/AE/resource_change'
 #     save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
 
-#     sample_dir = '../sample/benign'
-#     save_dir_base = '../sample/sample_AE/'
+    sample_dir = '../sample/benign'
+    save_dir_base = '../sample/sample_AE/'
 
     tasks = []
 
