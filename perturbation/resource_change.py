@@ -86,7 +86,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                     utf16_text, end = decode_utf16le_string(modified_data, start)
                     
                     if  (
-                            (re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])', utf16_text)) 
+                            (re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ])', utf16_text)) 
                             or 
                             (
                                 re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b', utf16_text)  
@@ -119,7 +119,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                     else:
                         # 그렇지 않은 경우, 원래 데이터를 유지
                         modified_utf16_data = modified_data[start:end]
-                    
+                                      
                     modified_data[start:end] = modified_utf16_data
                     i = end
                     continue
@@ -132,14 +132,36 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                 text = modified_data[start:end].decode('ascii', errors='ignore')             
                 txt_type = identify.tags_from_filename(text.strip())
                 
+                
                 if ('.dll' in text.lower() and 'binary' in txt_type) or ('.dll' in text.lower()):
-                    text = text.split('.')[0]
-                    if text.isupper():
-                        new_text = text + '.dll'
+                    new_text=''
+                    ori_text = text
+                    text = text.split('.')#[0]
+                    
+                    if len(text) == 2 :
+                        if len(text[-1].lower().replace('dll',''))==0:
+                            new_text = text[0] + '.dll'
+                        
+                        else:
+                            print(text, len(text), text[-1].lower())
+                            for idx,content in enumerate(text):
+                                if idx==0:
+                                    new_text+=content
+                                if 'dll' in content.lower():
+                                    new_text= new_text +'.'+content
+                            print("new_text : ", new_text)
+                            
+                                            
+                    if text[0].isupper():
+                        #new_text = text + '.dll'
                         modified_text = new_text.lower().encode('ascii')
                     else:
-                        new_text = text + '.dll'
+                        #new_text = text + '.dll'
                         modified_text = new_text.upper().encode('ascii')
+                        
+                    if len(ori_text)!= len(modified_text):
+                        print(ori_text,'||',modified_text)
+                        print(ori_text.split('.'))
                         
                     modified_data[start:end] = modified_text
                     continue
@@ -151,7 +173,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
 
                         # 또는 포맷 문자열(%d, %f 등)이 포함된 경우 또는 5자 이상의 영숫자와 특정 기호가 포함된 경우
                         or (
-                            re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])', text)  # 포맷 문자열 검사
+                            re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ])', text)  # 포맷 문자열 검사
                             or 
                             (  # 영숫자 및 특정 기호들이 5자 이상인 경우
                                 re.findall(r'\b[a-zA-Z0-9][a-zA-Z0-9\s\.,;:!?\'"()\[\]{}<>-]{5,}\b', text) 
@@ -175,20 +197,20 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         )
                     ):
         
-                    format_specifier = ''
-                    
+                    format_specifier = ''                 
+
                     if text in api_list:
                         modified_text = modified_data[start:end]
                         modified_text = bytes(modified_text)
                         modified_data[start:end] = modified_text
                         continue
                         
-                    if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text):
-                        format_specifier = re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcspn])',text)[0]
-                        last_text= text.split(format_specifier)[-1]
-                        text = text.split(format_specifier)[0]
+                    if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text):
+                        format_specifier = re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
+                        #print(format_specifier)
                         
-                        format_specifier = format_specifier + last_text
+                        for format_spec in format_specifier:
+                            text = text.replace(format_spec,'')
 
                     if len(text) <= len(letters_set):
                         random_list = random.sample(letters_set, len(text))
@@ -197,17 +219,26 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                     
 
                     modified_text = ''.join(random_list)
+                    #print(modified_text, '|' ,text, len(modified_text), len(text))
+                    
+#                     if (len(modified_text) == len(ori_text)) and ('%' in ori_text):
+#                         print(modified_text,'|',ori_text, len(modified_text), len(ori_text))
+#                         time.sleep(2)
                     
                     if format_specifier:
-                        modified_text = modified_text+format_specifier
+                        for format_spec in format_specifier:
+                            modified_text = modified_text+format_spec
                         
                     modified_text = bytes(modified_text, 'utf-8')
+                                           
                     modified_data[start:end] = modified_text
                     continue
 
                 else:
                     modified_text = modified_data[start:end]
                     modified_text = bytes(modified_text)
+                    
+                        
                     modified_data[start:end] = modified_text
                     continue
             else:
@@ -322,8 +353,11 @@ def main():
 #     sample_dir = '../Share_malware/Seed_malware'
 #     save_dir_base = '../Share_malware/AE/resource_change/'
     
-    sample_dir = '../Share_malware/AE/instruction_change'
-    save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
+    #sample_dir = '../Share_malware/AE/instruction_change'
+    #save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
+    
+    sample_dir = '../sample/benign'
+    save_dir_base = '../sample/sample_AE/'
     
     tasks = []
 
@@ -338,7 +372,7 @@ def main():
         create_directory(save_dir + '/')
         
         for sample in list_files_by_size(root):
-#             if 'VirusShare_f577d2b12698dc9fbe644dac12d48e50_changing.exe' not in sample:
+#             if 'putty.exe' not in sample:
 #                 continue
             
             print(sample)

@@ -107,7 +107,7 @@ def modify_headers(file_path, new_text):
     text_section = None
     #section_idx = 0
     new_text_list = []
-    
+    print("hihihi : ",new_text.keys())
     for section in pe.sections:
         if (not (section.Name.rstrip(b'\x00').lower().endswith(b'data') or section.Name.rstrip(b'\x00').lower() == b'.rsrc')) and \
            ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) or \
@@ -171,7 +171,7 @@ def disassemble_and_modify(filepath, output_filepath):
     mov_32_0 = ['pushfd|xor op0,op0|popfd|nop','pushfd|sub op0,op0|popfd','pushfd|and op0,0|popfd'] # mov reg 0
     mov_32_1= ['pushfd| xor op0,op0|inc op0|popfd'] # mov reg 1
     #mov_32_hex = ['push op1|pop op0|nop|nop','nop|nop|push op1|pop op0','nop|push op1|nop|pop op0','push op1|nop|pop op0|nop','nop|push op1|pop op0|nop','push op1|nop|nop|pop op0'] # mov reg hex
-    mov_32_hex = ['nop|push op1|pop op0|nop|nop', 'nop|nop|push op1|pop op0|nop', 'nop|nop|nop|push op1|pop op0', 'nop|push op1|nop|nop|pop op0', 'nop|nop|push op1|nop|pop op0', 'push op1|nop|pop op0|nop|nop', 'push op1|nop|nop|pop op0|nop', 'push op1|nop|nop|nop|pop op0', 'nop|push op1|nop|pop op0|nop']
+    mov_32_hex = ['push op1|pop op0|nop|nop', 'nop|push op1|pop op0|nop', 'nop|nop|push op1|pop op0', 'push op1|nop|nop|pop op0', 'nop|push op1|nop|pop op0', 'push op1|nop|pop op0|nop', 'push op1|nop|nop|pop op0', 'nop|push op1|nop|pop op0']
     print("89 : ",filepath)
     pe = pefile.PE(filepath)
     pe_data = open(filepath, "rb").read()
@@ -318,7 +318,6 @@ def disassemble_and_modify(filepath, output_filepath):
                                 new_ins = 'xor '+op_0+', '+op_1
                                 machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
-                                #print(asm_code, len(instruction), len(mc_code))
                                 if (len(mc_code) == len(instruction)):
                                     new_text += mc_code
                                     continue
@@ -332,12 +331,13 @@ def disassemble_and_modify(filepath, output_filepath):
 
                         machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
                         mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
+                        #print(asm_code, new_ins, len(instruction), len(mc_code))
 
                         after_insts = find_instruction_context(inst_dict, instr.ip)
                         op_0_insts = [instr for instr in after_insts if op_0 in instr]
 
-                        if (len(mc_code) == len(instruction) and '-' not in str(mc_code)):          
-                            if op_0_insts and all(op_0 in instr for instr in op_0_insts):
+                        if (len(mc_code) == len(instruction) and '-' not in str(mc_code)):  
+                            if op_0_insts and all(op_0 in instr for instr in op_0_insts) or (len(op_1)==9):
                                 new_text += instruction
                                 continue
 
@@ -390,65 +390,15 @@ def disassemble_and_modify(filepath, output_filepath):
                     elif 'mov' == op:
                         #print(hex(instr.ip), asm_code)
                         if op_0 == op_1:
-                            xor_list.append(instr)
                             new_ins = 'nop;nop'
                             machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
-                            mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
+                            mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))     
                             new_text += mc_code
                             continue
 
-    #                     if bitness ==64:
-
-    #                         if (op_0 in reg_64[6:] and op_1 in reg_64[6:]):
-    #                             new_text += instruction
-    #                             continue  
-
-    #                         if bool(re.search(r"\s*,\s*\d*\s*$", operands)):
-    #                             op_0 = operands.split(',')[0]
-    #                             op_1 = operands.split(',')[-1]
-
-    #                             change_instr = random.choice(mov_64)
-    #                             change_instr = change_instr.replace('op1',op_1)
-    #                             change_instr = change_instr.replace('op0',op_0)
-    #                             change_instr = change_instr.replace('|',';')
-    #                             machine_code = assemble_asm(change_instr, KS_ARCH_X86, bit)
-
-    #                             if len(machine_code)<len(section_data[instr.ip:instr.ip+instr.len]):
-    #                                 for i in range(0,len(section_data[instr.ip:instr.ip+instr.len])-len(machine_code)):
-    #                                     change_instr+=';nop'
-
-    #                             machine_code = assemble_asm(change_instr, KS_ARCH_X86, bit)
-    #                             mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
-    #                             new_text += mc_code
-    #                             continue
-
-    #                         else:
-    #                             change_instr = random.choice(mov_64)
-    #                             change_instr = change_instr.replace('op1',op_1)
-    #                             change_instr = change_instr.replace('op0',op_0)
-    #                             change_instr = change_instr.replace('|',';')
-
-    #                             if op_0 in reg_64[6:] or op_1 in reg_64[6:]:
-    #                                 change_instr = change_instr.replace('nop','')
-
-    #                             if bool(re.search(r"[h]", operands)):
-    #                                 new_text += instruction
-    #                                 continue  
-
-    #                             try:
-    #                                 machine_code = assemble_asm(change_instr, KS_ARCH_X86, bit)
-    #                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
-    #                                 new_text += mc_code
-    #                                 continue
-
-    #                             except KsError:
-    #                                 mc_code = instruction
-    #                                 new_text += mc_code
-    #                                 continue
 
                         if bitness ==32:
                             
-
                             if (len(op_0) == 2) or (len(op_1) == 2):
                                 new_text += bytes.fromhex((section_data[instr.ip:instr.ip+instr.len]))
                                 continue 
@@ -481,6 +431,9 @@ def disassemble_and_modify(filepath, output_filepath):
                                 change_instr = change_instr.replace('|',';')
                                 machine_code = assemble_asm(change_instr, KS_ARCH_X86, bit)
                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
+                                
+                                #print(asm_code,len(instruction), change_instr,len(mc_code))
+                                
                                 new_text += mc_code
                                 continue
 
@@ -506,7 +459,6 @@ def disassemble_and_modify(filepath, output_filepath):
                                     continue
 
                                 if len(mc_code) < len(instruction):
-
                                     while len(mc_code) < len(instruction):
                                         mc_code+=b'\x90'
 
@@ -534,12 +486,10 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
     global old_rawPointer
     global old_nextPointer
     
-    modified_section_names = list(modified_section_names)
-    
-    file_format = '.'+file_path.split('.')[-1]
-    
+    modified_section_names = list(modified_section_names)  
+    file_format = '.'+file_path.split('.')[-1]    
     pe = pefile.PE(file_path)
-    print(file_path)
+
     with open(file_path, "rb") as tmp:
         tmp_binary = tmp.read()
         print("ending pe size : ",len(tmp_binary))
@@ -623,8 +573,8 @@ def process_sample(args):
     output_filepath = os.path.join(save_dir, output_filename)
 
     #이미 파일이 존재하는 경우 건너뜀
-    if os.path.isfile(output_filepath):
-        return
+#     if os.path.isfile(output_filepath):
+#         return
 
     try:
         new_text = disassemble_and_modify(input_filepath, save_dir)
@@ -680,6 +630,9 @@ def main():
 #     sample_dir = '../Share_malware/AE/resource_change'
 #     save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
 
+#     sample_dir = '../sample/benign'
+#     save_dir_base = '../sample/sample_AE/'
+
     tasks = []
 
     for root, dirs, files in os.walk(sample_dir):
@@ -695,8 +648,9 @@ def main():
         #samples = list_files_by_size(root)
 
         for sample in files:
-#             if 'VirusShare_f577d2b12698dc9fbe644dac12d48e50.exe' not in sample:
-#                 continue
+            #if 'putty.exe' not in sample:
+            #if 'iexplore_32.exe' not in sample:
+                #continue
             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']):# or '.' not in sample:
                 continue
 
