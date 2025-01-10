@@ -149,7 +149,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                     new_text+=content
                                 if 'dll' in content.lower():
                                     new_text= new_text +'.'+content
-                            print("new_text : ", new_text)
+                            #print("new_text : ", new_text)
                             
                                             
                     if text[0].isupper():
@@ -207,33 +207,30 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         
                     if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text):
                         format_specifier = re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
-                        #print(format_specifier)
+                        split_texts = re.split(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
+                        #print(text, format_specifier, split_texts)
                         
-                        for format_spec in format_specifier:
-                            text = text.replace(format_spec,'')
-
-                    if len(text) <= len(letters_set):
-                        random_list = random.sample(letters_set, len(text))
-                    else:
-                        random_list = random.choices(letters_set, k=len(text))
-                    
-
-                    modified_text = ''.join(random_list)
-                    #print(modified_text, '|' ,text, len(modified_text), len(text))
-                    
-#                     if (len(modified_text) == len(ori_text)) and ('%' in ori_text):
-#                         print(modified_text,'|',ori_text, len(modified_text), len(ori_text))
-#                         time.sleep(2)
-                    
-                    if format_specifier:
-                        for format_spec in format_specifier:
-                            modified_text = modified_text+format_spec
+                        modified_text = ''
                         
-                    modified_text = bytes(modified_text, 'utf-8')
-                                           
-                    modified_data[start:end] = modified_text
-                    continue
+                        for idx, split_text in enumerate(split_texts):
+                            if '%' not in split_text:
+                                if len(split_text) <= len(letters_set):
+                                    random_list = random.sample(letters_set, len(split_text))
+                                else:
+                                    random_list = random.choices(letters_set, k=len(split_text))
+                                    
+                                if idx==0:    
+                                    modified_text = ''.join(random_list)
+                                else:
+                                    modified_text += ''.join(random_list)
 
+                            else:
+                                modified_text += split_text
+                                
+                        modified_text = bytes(modified_text, 'utf-8')
+                        modified_data[start:end] = modified_text
+                        continue
+                        
                 else:
                     modified_text = modified_data[start:end]
                     modified_text = bytes(modified_text)
@@ -372,8 +369,8 @@ def main():
         create_directory(save_dir + '/')
         
         for sample in list_files_by_size(root):
-#             if 'putty.exe' not in sample:
-#                 continue
+            if 'putty.exe' not in sample:
+                continue
             
             print(sample)
             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']): #or '.' not in sample:
