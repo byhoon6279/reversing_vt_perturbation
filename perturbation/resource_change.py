@@ -46,25 +46,52 @@ def get_exported_functions(pe):
 def is_printable(b):
     return 32 <= b < 127
 
+# def is_utf16le_string(data, start):
+#     """UTF-16 LE 문자열인지 확인"""
+#     # UTF-16 LE 문자열은 각 문자 사이에 0x00이 있어야 합니다.
+#     length = len(data)
+#     for i in range(start, length, 2):
+#         if i + 1 >= length or data[i+1] != 0x00:
+#             return False
+#         if data[i] == 0x00 and data[i+1] == 0x00:  # 문자열의 끝을 의미
+#             break
+#     return True
+
 def is_utf16le_string(data, start):
     """UTF-16 LE 문자열인지 확인"""
-    # UTF-16 LE 문자열은 각 문자 사이에 0x00이 있어야 합니다.
-    length = len(data)
-    for i in range(start, length, 2):
-        if i + 1 >= length or data[i+1] != 0x00:
-            return False
-        if data[i] == 0x00 and data[i+1] == 0x00:  # 문자열의 끝을 의미
-            break
-    return True
+    try:
+        # start부터 데이터를 UTF-16 LE로 디코딩 시도
+        data[start:].decode('utf-16-le')
+        return True
+    except UnicodeDecodeError:
+        return False
+
+# def decode_utf16le_string(data, start):
+#     """UTF-16 LE 문자열을 디코딩"""
+#     end = start
+#     utf16le_str = []
+#     while end < len(data) and data[end] != 0x00:
+#         utf16le_str.append(chr(data[end]))
+#         end += 2  # 2바이트씩 증가
+#     return ''.join(utf16le_str), end + 2  # 마지막 null 문자를 넘겨야 함
 
 def decode_utf16le_string(data, start):
     """UTF-16 LE 문자열을 디코딩"""
     end = start
-    utf16le_str = []
-    while end < len(data) and data[end] != 0x00:
-        utf16le_str.append(chr(data[end]))
-        end += 2  # 2바이트씩 증가
-    return ''.join(utf16le_str), end + 2  # 마지막 null 문자를 넘겨야 함
+    # 데이터 끝까지 탐색하며 null 문자(0x00 0x00)를 찾음
+    while end + 1 < len(data):
+        # null 문자(0x00 0x00) 확인
+        if data[end] == 0x00 and data[end + 1] == 0x00:
+            break
+        end += 2  # 2바이트씩 이동
+
+    try:
+        # UTF-16 LE로 디코딩 (start부터 end까지)
+        utf16le_str = data[start:end].decode('utf-16-le')
+        return utf16le_str, end + 2  # 마지막 null 문자 넘김
+    except UnicodeDecodeError:
+        raise ValueError("Invalid UTF-16 LE sequence in data.")
+
 
 def modify_data_sections(section_name = None, data = None , function_list = None):
     
@@ -106,15 +133,28 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 and not re.findall(r'=', utf16_text)
                             )
                         ):
-                        
-                        if len(modified_data[start:end]) <= len(letters_set):
-                            random_list = random.sample(letters_set, int(len(modified_data[start:end])/2))
+                        #print("  plain : ",utf16_text, '|',modified_data[start:end], len(modified_data[start:end]))
+
+                        if not re.findall(r'(?i)^[a-z]+$', utf16_text):
+                            if len(modified_data[start:end]) <= len(letters_set):
+                                random_list = random.sample(letters_set, int(len(modified_data[start:end])/2))
+
+                            else:
+                                random_list = random.choices(letters_set, k=int(len(modified_data[start:end])/2))
+
+                            modified_text = ''.join(random_list)
+                            modified_utf16_data = bytearray(modified_text.encode('utf-16le'))
+                            #print("  --> ",modified_text, modified_utf16_data, len(modified_utf16_data),'\n')
                             
                         else:
-                            random_list = random.choices(letters_set, k=int(len(modified_data[start:end])/2))
-                    
-                        modified_text = ''.join(random_list)
-                        modified_utf16_data = bytearray(modified_text.encode('utf-16le'))
+#                             if utf16_text in api_list:
+#                                 print("api : ",utf16_text)
+#                                 modified_text = modified_data[start:end]
+#                                 modified_text = bytes(modified_text)
+#                                 modified_data[start:end] = modified_text
+#                                 continue
+#                             else:
+                            modified_utf16_data = modified_data[start:end]
                         
                     else:
                         # 그렇지 않은 경우, 원래 데이터를 유지
@@ -131,8 +171,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                 end = i
                 text = modified_data[start:end].decode('ascii', errors='ignore')             
                 txt_type = identify.tags_from_filename(text.strip())
-                
-                
+
                 if ('.dll' in text.lower() and 'binary' in txt_type) or ('.dll' in text.lower()):
                     new_text=''
                     ori_text = text
@@ -159,9 +198,9 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         #new_text = text + '.dll'
                         modified_text = new_text.upper().encode('ascii')
                         
-                    if len(ori_text)!= len(modified_text):
-                        print(ori_text,'||',modified_text)
-                        print(ori_text.split('.'))
+#                     if len(ori_text)!= len(modified_text):
+#                         print(ori_text,'||',modified_text)
+#                         print(ori_text.split('.'))
                         
                     modified_data[start:end] = modified_text
                     continue
@@ -198,20 +237,64 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                     ):
         
                     format_specifier = ''                 
-
+                
                     if text in api_list:
                         modified_text = modified_data[start:end]
                         modified_text = bytes(modified_text)
                         modified_data[start:end] = modified_text
                         continue
                         
+                    if  (re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}', text) and not re.findall(r'<[^>]+>', text) and not re.findall(r'=', text)):
+                        if len(text) <= len(letters_set):
+                            random_list = random.sample(letters_set, len(text))
+                        else:
+                            random_list = random.choices(letters_set, k=len(text))
+
+                        modified_text = ''.join(random_list)
+                        modified_text = bytes(modified_text, 'utf-8')
+                        modified_data[start:end] = modified_text
+                        continue
+                    
+                    elif (
+                            '\\' in text 
+                            and len(text) > 5 
+                            and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]', text)  # 특정 특수 문자가 없는지 확인
+                            and not re.findall(r'[0-9]+', text)  # 숫자가 없는지 확인
+                        ):
+                        if len(text) <= len(letters_set):
+                            random_list = random.sample(letters_set, len(text))
+                        else:
+                            random_list = random.choices(letters_set, k=len(text))
+
+                        modified_text = ''.join(random_list)
+                        modified_text = bytes(modified_text, 'utf-8')
+                        modified_data[start:end] = modified_text
+                        continue
+                        
+                        
+#                     #print(text)
+#                     modified_text = ''
+                    
+#                     if re.fullmatch(r'(?=.*[a-zA-Z]).{10,}',text):
+#                         print("match : ",text)
+#                         if len(text) <= len(letters_set):
+#                             #print("hey : ",text)
+#                             random_list = random.sample(letters_set, len(text))
+#                             #print("he 2 : ", random_list)
+#                         else:
+#                             random_list = random.choices(letters_set, k=len(text))
+
+#                         modified_text = ''.join(random_list)
+#                        # print("mod : ",modified_text)
+#                         modified_text = bytes(modified_text, 'utf-8')
+#                         modified_data[start:end] = modified_text
+#                         continue
+                    
                     if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text):
                         format_specifier = re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
                         split_texts = re.split(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
                         #print(text, format_specifier, split_texts)
-                        
                         modified_text = ''
-                        
                         for idx, split_text in enumerate(split_texts):
                             if '%' not in split_text:
                                 if len(split_text) <= len(letters_set):
@@ -226,16 +309,45 @@ def modify_data_sections(section_name = None, data = None , function_list = None
 
                             else:
                                 modified_text += split_text
-                                
                         modified_text = bytes(modified_text, 'utf-8')
+                        
                         modified_data[start:end] = modified_text
                         continue
+                    else:
+                        if len(text)>=10 and '0x' not in text and ' ' in text:
+                            #print("hey : ",text, txt_type)
+                            if len(text) <= len(letters_set):
+                                random_list = random.sample(letters_set, len(text))
+                            else:
+                                random_list = random.choices(letters_set, k=len(text))
+
+                            modified_text = ''.join(random_list)
+                            modified_text = bytes(modified_text, 'utf-8')
+                            modified_data[start:end] = modified_text
+                            continue
+                            
+                        elif re.fullmatch(r'^[A-Z].*[a-z]$', text) and '%' not in text and ' ' in text:
+                            #print("dd : ",text)
+                            if len(text) <= len(letters_set):
+                                random_list = random.sample(letters_set, len(text))
+                            else:
+                                random_list = random.choices(letters_set, k=len(text))
+
+                            modified_text = ''.join(random_list)
+                            modified_text = bytes(modified_text, 'utf-8')
+                            modified_data[start:end] = modified_text
+                            continue
+                            
+                        #print("dd : ",text, text.isupper())
+                            
+                        modified_text = modified_data[start:end]
+                        modified_text = bytes(modified_text)
+                        modified_data[start:end] = modified_text
+                        continue      
                         
                 else:
                     modified_text = modified_data[start:end]
                     modified_text = bytes(modified_text)
-                    
-                        
                     modified_data[start:end] = modified_text
                     continue
             else:
@@ -274,7 +386,7 @@ def change_resource_case(file_path, output_path):
             if section_idx == 0:
                 modified_data += pe.header
 
-            if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+            if not (section.Name.rstrip(b'\x00').lower() == b'.reloc') and section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
                 section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
                 section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
 
@@ -369,8 +481,9 @@ def main():
         create_directory(save_dir + '/')
         
         for sample in list_files_by_size(root):
-            if 'putty.exe' not in sample:
-                continue
+            #if 'putty.exe' not in sample:
+            #if 'hello_world.exe' not in sample:
+                #continue
             
             print(sample)
             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']): #or '.' not in sample:
