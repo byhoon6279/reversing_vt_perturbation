@@ -147,13 +147,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             #print("  --> ",modified_text, modified_utf16_data, len(modified_utf16_data),'\n')
                             
                         else:
-#                             if utf16_text in api_list:
-#                                 print("api : ",utf16_text)
-#                                 modified_text = modified_data[start:end]
-#                                 modified_text = bytes(modified_text)
-#                                 modified_data[start:end] = modified_text
-#                                 continue
-#                             else:
+
                             modified_utf16_data = modified_data[start:end]
                         
                     else:
@@ -198,10 +192,6 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         #new_text = text + '.dll'
                         modified_text = new_text.upper().encode('ascii')
                         
-#                     if len(ori_text)!= len(modified_text):
-#                         print(ori_text,'||',modified_text)
-#                         print(ori_text.split('.'))
-                        
                     modified_data[start:end] = modified_text
                     continue
                     
@@ -244,52 +234,26 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         modified_data[start:end] = modified_text
                         continue
                         
-                    if  (re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}', text) and not re.findall(r'<[^>]+>', text) and not re.findall(r'=', text)):
-                        if len(text) <= len(letters_set):
-                            random_list = random.sample(letters_set, len(text))
-                        else:
-                            random_list = random.choices(letters_set, k=len(text))
-
-                        modified_text = ''.join(random_list)
-                        modified_text = bytes(modified_text, 'utf-8')
-                        modified_data[start:end] = modified_text
-                        continue
-                    
-                    elif (
+                    if  (
                             '\\' in text 
                             and len(text) > 5 
                             and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]', text)  # 특정 특수 문자가 없는지 확인
                             and not re.findall(r'[0-9]+', text)  # 숫자가 없는지 확인
+                        )  or (
+                            re.findall(r'(?:[a-zA-Z0-9-]{1,63}\.)+[a-zA-Z]{2,63}', text)  # 도메인 패턴 (예: example.com)
+                            and not re.findall(r'<[^>]+>', text)  # HTML 태그가 없는지 확인
+                            and not re.findall(r'=', text)  # 등호(=)가 없는지 확인
                         ):
-                        if len(text) <= len(letters_set):
-                            random_list = random.sample(letters_set, len(text))
-                        else:
-                            random_list = random.choices(letters_set, k=len(text))
+                            if len(text) <= len(letters_set):
+                                random_list = random.sample(letters_set, len(text))
+                            else:
+                                random_list = random.choices(letters_set, k=len(text))
 
-                        modified_text = ''.join(random_list)
-                        modified_text = bytes(modified_text, 'utf-8')
-                        modified_data[start:end] = modified_text
-                        continue
-                        
-                        
-#                     #print(text)
-#                     modified_text = ''
-                    
-#                     if re.fullmatch(r'(?=.*[a-zA-Z]).{10,}',text):
-#                         print("match : ",text)
-#                         if len(text) <= len(letters_set):
-#                             #print("hey : ",text)
-#                             random_list = random.sample(letters_set, len(text))
-#                             #print("he 2 : ", random_list)
-#                         else:
-#                             random_list = random.choices(letters_set, k=len(text))
+                            modified_text = ''.join(random_list)
+                            modified_text = bytes(modified_text, 'utf-8')
+                            modified_data[start:end] = modified_text
+                            continue
 
-#                         modified_text = ''.join(random_list)
-#                        # print("mod : ",modified_text)
-#                         modified_text = bytes(modified_text, 'utf-8')
-#                         modified_data[start:end] = modified_text
-#                         continue
-                    
                     if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text):
                         format_specifier = re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
                         split_texts = re.split(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
@@ -314,7 +278,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         modified_data[start:end] = modified_text
                         continue
                     else:
-                        if len(text)>=10 and '0x' not in text and ' ' in text:
+                        if (len(text)>=10 and '0x' not in text and ' ' in text) or (re.fullmatch(r'^[A-Z].*[a-z]$', text) and '%' not in text and ' ' in text):
                             #print("hey : ",text, txt_type)
                             if len(text) <= len(letters_set):
                                 random_list = random.sample(letters_set, len(text))
@@ -325,20 +289,6 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             modified_text = bytes(modified_text, 'utf-8')
                             modified_data[start:end] = modified_text
                             continue
-                            
-                        elif re.fullmatch(r'^[A-Z].*[a-z]$', text) and '%' not in text and ' ' in text:
-                            #print("dd : ",text)
-                            if len(text) <= len(letters_set):
-                                random_list = random.sample(letters_set, len(text))
-                            else:
-                                random_list = random.choices(letters_set, k=len(text))
-
-                            modified_text = ''.join(random_list)
-                            modified_text = bytes(modified_text, 'utf-8')
-                            modified_data[start:end] = modified_text
-                            continue
-                            
-                        #print("dd : ",text, text.isupper())
                             
                         modified_text = modified_data[start:end]
                         modified_text = bytes(modified_text)
