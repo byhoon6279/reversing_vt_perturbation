@@ -46,51 +46,52 @@ def get_exported_functions(pe):
 def is_printable(b):
     return 32 <= b < 127
 
-# def is_utf16le_string(data, start):
-#     """UTF-16 LE 문자열인지 확인"""
-#     # UTF-16 LE 문자열은 각 문자 사이에 0x00이 있어야 합니다.
-#     length = len(data)
-#     for i in range(start, length, 2):
-#         if i + 1 >= length or data[i+1] != 0x00:
-#             return False
-#         if data[i] == 0x00 and data[i+1] == 0x00:  # 문자열의 끝을 의미
-#             break
-#     return True
-
 def is_utf16le_string(data, start):
     """UTF-16 LE 문자열인지 확인"""
-    try:
-        # start부터 데이터를 UTF-16 LE로 디코딩 시도
-        data[start:].decode('utf-16-le')
-        return True
-    except UnicodeDecodeError:
-        return False
+    # UTF-16 LE 문자열은 각 문자 사이에 0x00이 있어야 합니다.
+    length = len(data)
+    for i in range(start, length, 2):
+        if i + 1 >= length or data[i+1] != 0x00:
+            return False
+        if data[i] == 0x00 and data[i+1] == 0x00:  # 문자열의 끝을 의미
+            break
+    return True
 
-# def decode_utf16le_string(data, start):
-#     """UTF-16 LE 문자열을 디코딩"""
-#     end = start
-#     utf16le_str = []
-#     while end < len(data) and data[end] != 0x00:
-#         utf16le_str.append(chr(data[end]))
-#         end += 2  # 2바이트씩 증가
-#     return ''.join(utf16le_str), end + 2  # 마지막 null 문자를 넘겨야 함
+# def is_utf16le_string(data, start):
+#     """UTF-16 LE 문자열인지 확인"""
+#     try:
+#         # start부터 데이터를 UTF-16 LE로 디코딩 시도
+#         data[start:].decode('utf-16-le')
+#         return True
+#     except UnicodeDecodeError:
+#         return False
 
 def decode_utf16le_string(data, start):
     """UTF-16 LE 문자열을 디코딩"""
     end = start
-    # 데이터 끝까지 탐색하며 null 문자(0x00 0x00)를 찾음
-    while end + 1 < len(data):
-        # null 문자(0x00 0x00) 확인
-        if data[end] == 0x00 and data[end + 1] == 0x00:
-            break
-        end += 2  # 2바이트씩 이동
+    utf16le_str = []
+    while end < len(data) and data[end] != 0x00:
+        utf16le_str.append(chr(data[end]))
+        end += 2  # 2바이트씩 증가
+    return ''.join(utf16le_str), end + 2  # 마지막 null 문자를 넘겨야 함
 
-    try:
-        # UTF-16 LE로 디코딩 (start부터 end까지)
-        utf16le_str = data[start:end].decode('utf-16-le')
-        return utf16le_str, end + 2  # 마지막 null 문자 넘김
-    except UnicodeDecodeError:
-        raise ValueError("Invalid UTF-16 LE sequence in data.")
+# def decode_utf16le_string(data, start):
+#     """UTF-16 LE 문자열을 디코딩"""
+#     end = start
+#     # 데이터 끝까지 탐색하며 null 문자(0x00 0x00)를 찾음
+#     while end + 1 < len(data):
+#         # null 문자(0x00 0x00) 확인
+#         if data[end] == 0x00 and data[end + 1] == 0x00:
+#             break
+#         end += 2  # 2바이트씩 이동
+
+#     try:
+#         # UTF-16 LE로 디코딩 (start부터 end까지)
+#         utf16le_str = data[start:end].decode('utf-16-le')
+#         return utf16le_str, end + 2  # 마지막 null 문자 넘김
+#     except UnicodeDecodeError:
+#         raise ValueError("Invalid UTF-16 LE sequence in data.")
+
 
 
 def modify_data_sections(section_name = None, data = None , function_list = None):
@@ -132,10 +133,14 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 and not re.findall(r'<[^>]+>', utf16_text) 
                                 and not re.findall(r'=', utf16_text)
                             )
+                            or
+                            (
+                                re.findall(r'^(?=.*[a-zA-Z])(?=.*[()._])[a-zA-Z()._]+$',utf16_text)
+                                #re.findall(r'^[a-zA-Z()._]+$',utf16_text) and len(utf16_text) >= 5
+                            )
                         ):
-                        #print("  plain : ",utf16_text, '|',modified_data[start:end], len(modified_data[start:end]))
-
-                        if not re.findall(r'(?i)^[a-z]+$', utf16_text):
+                        if not re.findall(r'(?i)^[a-z\s]+$', utf16_text):
+                                                        
                             if len(modified_data[start:end]) <= len(letters_set):
                                 random_list = random.sample(letters_set, int(len(modified_data[start:end])/2))
 
@@ -144,10 +149,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
 
                             modified_text = ''.join(random_list)
                             modified_utf16_data = bytearray(modified_text.encode('utf-16le'))
-                            #print("  --> ",modified_text, modified_utf16_data, len(modified_utf16_data),'\n')
-                            
                         else:
-
                             modified_utf16_data = modified_data[start:end]
                         
                     else:
@@ -176,14 +178,11 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             new_text = text[0] + '.dll'
                         
                         else:
-                            print(text, len(text), text[-1].lower())
                             for idx,content in enumerate(text):
                                 if idx==0:
                                     new_text+=content
                                 if 'dll' in content.lower():
-                                    new_text= new_text +'.'+content
-                            #print("new_text : ", new_text)
-                            
+                                    new_text= new_text +'.'+content                           
                                             
                     if text[0].isupper():
                         #new_text = text + '.dll'
@@ -226,7 +225,8 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         )
                     ):
         
-                    format_specifier = ''                 
+                    format_specifier = ''      
+            
                 
                     if text in api_list:
                         modified_text = modified_data[start:end]
@@ -257,7 +257,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                     if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text):
                         format_specifier = re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
                         split_texts = re.split(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
-                        #print(text, format_specifier, split_texts)
+
                         modified_text = ''
                         for idx, split_text in enumerate(split_texts):
                             if '%' not in split_text:
@@ -409,14 +409,14 @@ def main():
     #sample_dir = '../sample/perturbated_labling_sample/instruction_change/'
     #save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
     
-#     sample_dir = '../Share_malware/Seed_malware'
-#     save_dir_base = '../Share_malware/AE/resource_change/'
+    sample_dir = '../Share_malware/Seed_malware'
+    save_dir_base = '../Share_malware/AE/resource_change/'
     
     #sample_dir = '../Share_malware/AE/instruction_change'
     #save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
     
-    sample_dir = '../sample/benign'
-    save_dir_base = '../sample/sample_AE/'
+#     sample_dir = '../sample/benign'
+#     save_dir_base = '../sample/sample_AE/'
     
     tasks = []
 
@@ -431,6 +431,7 @@ def main():
         create_directory(save_dir + '/')
         
         for sample in list_files_by_size(root):
+            #if 'calc.exe' not in sample:
             #if 'putty.exe' not in sample:
             #if 'hello_world.exe' not in sample:
                 #continue
