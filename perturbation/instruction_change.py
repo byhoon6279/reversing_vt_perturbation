@@ -331,13 +331,16 @@ def disassemble_and_modify(filepath, output_filepath):
 
                         machine_code = assemble_asm(new_ins, KS_ARCH_X86, bit)
                         mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
-                        #print(asm_code, new_ins, len(instruction), len(mc_code))
+                        
 
                         after_insts = find_instruction_context(inst_dict, instr.ip)
                         op_0_insts = [instr for instr in after_insts if op_0 in instr]
-
+                        #print(asm_code, new_ins, mc_code, '|',op_0_insts,len(instruction), len(mc_code))
+                        
                         if (len(mc_code) == len(instruction) and '-' not in str(mc_code)):  
+                            
                             if op_0_insts and all(op_0 in instr for instr in op_0_insts) or (len(op_1)==9):
+                                #print("  none : ",asm_code, new_ins, len(instruction), len(mc_code))
                                 new_text += instruction
                                 continue
 
@@ -418,8 +421,9 @@ def disassemble_and_modify(filepath, output_filepath):
                                 machine_code = assemble_asm(change_instr, KS_ARCH_X86, bit)
                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
                                 
-                                if len(instruction)>len(mc_code):
-                                    mc_code+=b'\x90'
+                                if len(mc_code) < len(instruction):
+                                    while len(mc_code) < len(instruction):
+                                        mc_code+=b'\x90'
                                 
                                 #print(asm_code, change_instr, len(instruction), len(mc_code))
                                 
@@ -435,8 +439,9 @@ def disassemble_and_modify(filepath, output_filepath):
                                 machine_code = assemble_asm(change_instr, KS_ARCH_X86, bit)
                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
                                 
-                                if len(instruction)>len(mc_code):
-                                    mc_code+=b'\x90'
+                                if len(mc_code) < len(instruction):
+                                    while len(mc_code) < len(instruction):
+                                        mc_code+=b'\x90'
                                     
                                 new_text += mc_code
                                 continue
@@ -450,8 +455,9 @@ def disassemble_and_modify(filepath, output_filepath):
                                 mc_code =  bytes.fromhex("".join("{:02x}".format(byte) for byte in machine_code))
                                 
                                 #print(asm_code,len(instruction), change_instr,len(mc_code))
-                                if len(instruction)>len(mc_code):
-                                    mc_code+=b'\x90'
+                                if len(mc_code) < len(instruction):
+                                    while len(mc_code) < len(instruction):
+                                        mc_code+=b'\x90'
                                     
                                 new_text += mc_code
                                 continue
@@ -631,8 +637,8 @@ def main():
 #     sample_dir = '../sample/Dike_benign/'
 #     save_dir_base = '../sample/benign_AE/'
     
-#     sample_dir = '../sample/Dike_malware/'
-#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
+    sample_dir = '../sample/Dike_malware/'
+    save_dir_base = '../sample/perturbated_labling_sample/instruction_change/'
     
 #     sample_dir = '../sample/perturbated_labling_sample/resource_change/'
 #     save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
@@ -649,8 +655,8 @@ def main():
 #     sample_dir = '../Share_malware/AE/resource_change'
 #     save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
 
-    sample_dir = '../sample/benign'
-    save_dir_base = '../sample/sample_AE/'
+#     sample_dir = '../sample/benign'
+#     save_dir_base = '../sample/sample_AE/'
 
     tasks = []
 

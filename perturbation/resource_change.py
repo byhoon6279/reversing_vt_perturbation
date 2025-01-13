@@ -139,8 +139,9 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 #re.findall(r'^[a-zA-Z()._]+$',utf16_text) and len(utf16_text) >= 5
                             )
                         ):
+                        #print("target : ",utf16_text, re.findall(r'(?i)^[a-z\s]+$', utf16_text))
                         if not re.findall(r'(?i)^[a-z\s]+$', utf16_text):
-                                                        
+                            #print("   modified : ",utf16_text)                            
                             if len(modified_data[start:end]) <= len(letters_set):
                                 random_list = random.sample(letters_set, int(len(modified_data[start:end])/2))
 
@@ -148,10 +149,45 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 random_list = random.choices(letters_set, k=int(len(modified_data[start:end])/2))
 
                             modified_text = ''.join(random_list)
-                            modified_utf16_data = bytearray(modified_text.encode('utf-16le'))
+                            modified_utf16_data = bytearray(modified_text.encode('utf-16le'))                            
+                            
+                        elif ' ' in utf16_text and len(re.findall(r' ', utf16_text)) >= 3:
+                            #print("   space : ",utf16_text)
+                            
+                            utf16_space_chacker = utf16_text.split()
+                            space_cnt = 0
+                            
+                            for chunk in utf16_space_chacker:
+                                if chunk[0].isupper():
+                                    space_cnt+=1
+                            
+                            if space_cnt == len(utf16_space_chacker) or int(len(utf16_space_chacker)/2) <= space_cnt:
+                                
+                                if utf16_text.isupper():
+                                    #new_text = text + '.dll'
+                                    modified_text = utf16_text.lower().encode('utf-16le')
+                                else:
+                                    #new_text = text + '.dll'
+                                    modified_text = utf16_text.upper().encode('utf-16le')
+
+                                modiied_utf16_data = bytearray(modified_text+b'\x00\x00')
+                                #print("   space modified : ",utf16_text, modified_data[start:end], modiied_utf16_data, len(modified_data[start:end]), len(modiied_utf16_data), type(modiied_utf16_data))
+                                
+                            else:
+                                modified_utf16_data = modified_data[start:end]
                         else:
-                            modified_utf16_data = modified_data[start:end]
-                        
+                            #print("else : ",utf16_text)
+                            if (utf16_text[0].isupper() and utf16_text[1:].islower()) or (utf16_text.islower()):
+                                #print("else_condition : ",utf16_text)
+                                modified_text = utf16_text.upper().encode('utf-16le')
+                                modified_text= bytearray(modified_text+b'\x00\x00')
+                                #continue
+                                
+                            else:   
+                                modified_text = modified_data[start:end]
+                                
+                            modified_utf16_data = modified_text
+
                     else:
                         # 그렇지 않은 경우, 원래 데이터를 유지
                         modified_utf16_data = modified_data[start:end]
@@ -226,7 +262,9 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                     ):
         
                     format_specifier = ''      
-            
+                    
+                    if 'overlay'in section_name:
+                        print(text)
                 
                     if text in api_list:
                         modified_text = modified_data[start:end]
@@ -253,6 +291,9 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             modified_text = bytes(modified_text, 'utf-8')
                             modified_data[start:end] = modified_text
                             continue
+                            
+                    if 'overlay'in section_name:
+                        print(" ol : ",text, txt_type)
 
                     if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text):
                         format_specifier = re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text)
@@ -274,12 +315,27 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             else:
                                 modified_text += split_text
                         modified_text = bytes(modified_text, 'utf-8')
-                        
                         modified_data[start:end] = modified_text
                         continue
+                        
                     else:
+                        if 'overlay'in section_name and len(text)>5 and re.findall(r'(?i)^[a-z0-9]+$',text):
+                            print(" hi ol : ",text, txt_type)
+                            if len(text) <= len(letters_set):
+                                random_list = random.sample(letters_set, len(text))
+                            else:
+                                random_list = random.choices(letters_set, k=len(text))
+
+                            modified_text = ''.join(random_list)
+                            modified_text = bytes(modified_text, 'utf-8')
+
+                            modified_data[start:end] = modified_text
+                            print("  modified : ",modified_text)
+                            continue
+                        
+                        
+                            
                         if (len(text)>=10 and '0x' not in text and ' ' in text) or (re.fullmatch(r'^[A-Z].*[a-z]$', text) and '%' not in text and ' ' in text):
-                            #print("hey : ",text, txt_type)
                             if len(text) <= len(letters_set):
                                 random_list = random.sample(letters_set, len(text))
                             else:
@@ -336,7 +392,8 @@ def change_resource_case(file_path, output_path):
             if section_idx == 0:
                 modified_data += pe.header
 
-            if not (section.Name.rstrip(b'\x00').lower() == b'.reloc') and section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+            #if not (section.Name.rstrip(b'\x00').lower() == b'.reloc') and section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
+            if section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_INITIALIZED_DATA'] and \
                 section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ'] or \
                 section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE']:
 
@@ -403,20 +460,20 @@ def main():
 #     sample_dir = '../sample/benign_AE/instruction_change'
 #     save_dir_base = '../sample/benign_AE/instruction_change+resource_change/'
 
-#     sample_dir = '../sample/Dike_malware/'
-#     save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
+    sample_dir = '../sample/Dike_malware/'
+    save_dir_base = '../sample/perturbated_labling_sample/resource_change/'
     
-    #sample_dir = '../sample/perturbated_labling_sample/instruction_change/'
-    #save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
+#     sample_dir = '../sample/perturbated_labling_sample/instruction_change/'
+#     save_dir_base = '../sample/perturbated_labling_sample/instruction_change+resource_change/'
     
-    sample_dir = '../Share_malware/Seed_malware'
-    save_dir_base = '../Share_malware/AE/resource_change/'
+#     sample_dir = '../Share_malware/Seed_malware'
+#     save_dir_base = '../Share_malware/AE/resource_change/'
     
     #sample_dir = '../Share_malware/AE/instruction_change'
     #save_dir_base = '../Share_malware/AE/instruction_change+resource_change/'
     
-#     sample_dir = '../sample/benign'
-#     save_dir_base = '../sample/sample_AE/'
+    sample_dir = '../sample/benign'
+    save_dir_base = '../sample/sample_AE/'
     
     tasks = []
 
@@ -432,9 +489,10 @@ def main():
         
         for sample in list_files_by_size(root):
             #if 'calc.exe' not in sample:
-            #if 'putty.exe' not in sample:
+            if 'putty.exe' not in sample:
             #if 'hello_world.exe' not in sample:
-                #continue
+            #if 'eb1a403dfa4799cc197e6f12fcec959c1dbaa45fbdf291b5358d9c3d5ffd1782.exe' not in sample:
+                continue
             
             print(sample)
             if any(ext in sample for ext in ['.ipynb', '.pickle', '.txt', '.zip']): #or '.' not in sample:
