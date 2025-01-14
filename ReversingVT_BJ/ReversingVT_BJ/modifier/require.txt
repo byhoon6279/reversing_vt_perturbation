@@ -1,0 +1,7 @@
+iced_x86
+binutils
+pwntools
+pefile
+capstone
+keystone
+colorama
