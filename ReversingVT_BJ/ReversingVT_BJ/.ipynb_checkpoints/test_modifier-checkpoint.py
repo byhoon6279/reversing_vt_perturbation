@@ -11,7 +11,7 @@ perts = ["modify_dos_header","dos_stub","coff_header","rich_header","optional_he
         "section_rename","section_add","section_append","content_shifting",
         "jmp_overlay_back","overlay_append","instruction_change","resource_change","increase_section"]
 
-#perts = ["instruction_change","resource_change","increase_section"]
+perts = ["instruction_change","resource_change","increase_section"]
 
 sample = "putty.exe"
 mod = Modifier(sample, "m_sample_2")

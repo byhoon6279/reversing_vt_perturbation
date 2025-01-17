@@ -29,6 +29,7 @@ from coff_header import *
 from data_directory import *
 from instruction_change import *
 from resource_change import *
+from increase_section import *
 
 class Modifier:
     def __init__(self, sample_path, opath):
@@ -185,5 +186,9 @@ class Modifier:
     def resource_change(self):
         args = (self.sample, self.root_sample, self.opath)
         resource_change(args)
+
+    def increase_section(self):
+        args = (self.sample, self.root_sample, self.opath)
+        increase_section(args)
 
 
