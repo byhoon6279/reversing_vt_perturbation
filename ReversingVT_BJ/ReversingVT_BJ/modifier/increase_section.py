@@ -28,32 +28,31 @@ def increase_section_size_with_nop(file_path, output_file, increase_size, nop_co
         # PE 파일 로드
         pe = lief.parse(file_path)
         if not pe or not hasattr(pe, 'optional_header'):
-            print("The file is not a valid PE file or does not have an optional header.")
+            print(f"[ERROR] The file '{file_path}' is not a valid PE file or does not have an optional header.")
             return False
 
         # FileAlignment 및 SectionAlignment 가져오기
         file_alignment = pe.optional_header.file_alignment
         section_alignment = pe.optional_header.section_alignment
 
-        print(f"FileAlignment: {file_alignment}")
-        print(f"SectionAlignment: {section_alignment}")
+        print(f"[INFO] FileAlignment: {file_alignment}, SectionAlignment: {section_alignment}")
 
         # 각 섹션 크기 및 섹션 헤더 수정
         previous_end_of_file = 0
         for section in pe.sections:
-            print(f"Processing section: {section.name}")
+            print(f"[INFO] Processing section: {section.name}")
 
             # 파일 크기 (SizeOfRawData) 증가 및 정렬
             raw_size = section.size + increase_size
-            new_raw_size = (section.sizeof_raw_data + file_alignment - 1) // file_alignment * file_alignment
+            new_raw_size = (raw_size + file_alignment - 1) // file_alignment * file_alignment
             section.size = new_raw_size
-            print(f"  New SizeOfRawData: {new_raw_size} (aligned from {raw_size})")
+            print(f"  [INFO] New SizeOfRawData: {new_raw_size} (aligned from {raw_size})")
 
             # 메모리 크기 (VirtualSize) 증가 및 정렬
             virtual_size = section.virtual_size + increase_size
-            new_virtual_size = (section.virtual_size + section_alignment - 1) // section_alignment * section_alignment
+            new_virtual_size = (virtual_size + section_alignment - 1) // section_alignment * section_alignment
             section.virtual_size = new_virtual_size
-            print(f"  New VirtualSize: {new_virtual_size} (aligned from {virtual_size})")
+            print(f"  [INFO] New VirtualSize: {new_virtual_size} (aligned from {virtual_size})")
 
             # 섹션 데이터 오프셋(PointerToRawData) 업데이트
             if previous_end_of_file == 0:
@@ -61,30 +60,34 @@ def increase_section_size_with_nop(file_path, output_file, increase_size, nop_co
             else:
                 section.offset = previous_end_of_file
                 previous_end_of_file += new_raw_size
-            print(f"  Updated PointerToRawData: {section.offset}")
+            print(f"  [INFO] Updated PointerToRawData: {section.offset}")
 
-            # 섹션 끝에 NOP (0x90) 추가
-            section_data = list(section.content)  # memoryview를 리스트로 변환
+            # 섹션 끝에 NOP (0x90) 추가 + 패딩 적용
+            section_data = list(section.content)  # 기존 섹션 데이터
             section_data.extend([0x90] * nop_count)  # NOP 추가
+            padding_size = section.size - len(section_data)  # 부족한 크기 계산
+            if padding_size > 0:
+                section_data.extend([0x00] * padding_size)  # 부족한 부분을 0x00 패딩
             section.content = section_data  # 다시 content에 반영
-            print(f"  Added {nop_count} NOP (0x90) to section: {section.name}")
+
+            print(f"  [INFO] Added {nop_count} NOP (0x90) and {padding_size} bytes padding to section: {section.name}")
 
         # SizeOfImage 업데이트
         last_section = pe.sections[-1]
         new_size_of_image = last_section.virtual_address + last_section.virtual_size
         pe.optional_header.sizeof_image = new_size_of_image
-        print(f"Updated SizeOfImage: {new_size_of_image}")
+        print(f"[INFO] Updated SizeOfImage: {new_size_of_image}")
 
-        # 수정된 파일 저장
-        #pe.write(output_file)
+        # 수정된 파일 저장 (PE Builder 사용)
         builder = lief.PE.Builder(pe)
         builder.build()
         builder.write(output_file)
-        print(f"Modified file saved to: {output_file}")
+        print(f"[SUCCESS] Modified file saved to: {output_file}")
+
         return True
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"[ERROR] {e}")
         return False
     
 def increase_section(args):
