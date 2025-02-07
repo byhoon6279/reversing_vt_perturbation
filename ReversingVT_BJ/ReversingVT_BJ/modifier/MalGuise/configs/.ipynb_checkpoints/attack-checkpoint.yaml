@@ -1,0 +1,35 @@
+Problem_Attack:
+  ML:
+    model_name: "malconv"                 # 'malgraph' or 'malconv'
+    base_url: "http://127.0.0.1:8080/predictions"
+    threshold_type: '1000fpr'              # '100fpr' or '1000fpr'
+  saved_sample_path: "./bypassed_samples"
+  target_pattern: "AV"
+  attack_strategy: 'new_section'           # 'slack_space' or 'new_section'
+  call_addr_file_path: "src/utils/pe_patcher/pe_changes_and_acfgs/call_addr_files"
+  tmp_sample_root: "./bypassed_samples/tmp_mal"
+  context_free_semnops: False
+  mcts_levels: 6
+  mcts_scalar: 0
+  num_workers: 2
+  max_random_number: 100
+  mcts_pause_time: 300
+  mcts_budget: 40
+  max_num_modified_blocks: 100
+  attempt_alpha: 1
+  attempt_beta: 1
+  selected_semnop_num: 3
+  mcts_default_policy_search_depth: 1
+  rate_of_increasement: 0.05
+  n_alignment: 0
+  if_size_align: True
+  with_conf: True
+Training:
+  cuda: True                              # enable GPU training if cuda is available
+  dist_backend: "nccl"                    # if using torch.distribution, the backend to be used
+  dist_port: "1234"
+  max_epoches: 10
+  train_batch_size: 16
+  test_batch_size: 32
+  seed: 44
+  only_test_path: 'None'

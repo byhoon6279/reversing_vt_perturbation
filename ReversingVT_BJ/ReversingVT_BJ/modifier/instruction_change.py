@@ -651,17 +651,18 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
     if idx == len(pe.sections) - 1: #overlay
         new_binary += tmp_binary[section.PointerToRawData+section.SizeOfRawData:] 
             
-    with open(file_path.replace(file_format, "_changing"+file_format), "wb") as f:
+    with open(file_path.replace(file_format, "_instruction_change"+file_format), "wb") as f:
         f.write(new_binary)
+        
     #print("last : ",len(new_binary))    
     os.remove(tmp_file)
     #print("save : ",save_dir)
-    file_name = file_path.split('/')[-1].replace(file_format, "_changing"+file_format)
-    print("Done!! : ",file_path.replace(file_format, "_changing"+file_format), "| ",save_dir+file_name,"\n")
+    file_name = file_path.split('/')[-1].replace(file_format, "_instruction_change"+file_format)
+    print("Done!! : ",file_path.replace(file_format, "_instruction_change"+file_format), "| ",save_dir+file_name,"\n")
     #shutil.move(save_dir+file_name,file_path) 
-    os.rename(file_path.replace(file_format, "_changing"+file_format), save_dir+file_name)
+    os.rename(file_path.replace(file_format, "_instruction_change"+file_format), save_dir+file_name)
     #print(file_path.replace(file_format, "_changing"+file_format))
-    os.system('rm -rf '+file_path.replace(file_format, "_changing"+file_format))
+    os.system('rm -rf '+file_path.replace(file_format, "_instruction_change"+file_format))
     
 def instruction_change(args):
     sample, root, save_dir = args

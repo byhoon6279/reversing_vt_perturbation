@@ -1,0 +1,3 @@
+IDA_PATH: "/opt/idapro-8.3/ida"
+SCRIPT_PATH: "/home/MalGuise/src/patch_pe_files/get_call_ida_processing.py"
+saved_path: "/home/MalGuise/malware_samples"

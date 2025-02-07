@@ -1,0 +1,9 @@
+IDA_PATH: "/opt/idapro-8.3/idat64"
+#SCRIPT_PATH: "src/utils/pe_patcher/get_call_ida_processing.py"
+SCRIPT_PATH: "src/utils/pe_patcher/get_call_ida_processing.py"
+saved_path: "malware_samples/"
+  
+Acfg:
+  SCRIPT_PATH: "src/utils/acfg_extractor/processing_by_ida.py"
+  get_half_data: False
+  saved_path: "src/utils/acfg_extractor/extracted_data/"

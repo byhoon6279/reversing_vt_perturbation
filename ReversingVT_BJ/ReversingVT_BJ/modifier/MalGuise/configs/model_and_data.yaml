@@ -1,0 +1,60 @@
+Malconv:
+  Training:
+    root_path: ""
+    preprocess_root: ""
+    max_epochs: 200
+    train_batch_size: 100
+    test_batch_size: 100
+    num_workers: 30
+    seed: 19920208
+    only_test_path: "None"
+    pretrained_path: "None"
+  Model:
+    input_length: 2000000
+    window_size: 500
+    num_classes: 1
+    num_embeddings: 257
+    embedding_dim: 8
+    conv_out_channels: 128
+    dropout_rate: 0
+    use_activation: True
+    last_activation: "sigmoid"
+    model_path: "saved_models/malconv/#auc0.9965_tpr0.9320_fpr0.0033_bacc0.9643_malconv.pt"
+  Optimizer:
+    name: "Adam"                  # Adam / AdamW
+    learning_rate: 0.0007           # initial learning rate
+    weight_decay: 1e-5            # initial weight decay         # Annealing applied to learning rate after each epoch
+    criterion: "BCELoss"
+
+Malgraph:
+  Training:
+    root_path: ""
+    data_root: ""
+    dist_port: 1234
+    max_epochs: 10
+    train_batch_size: 128
+    test_batch_size: 128
+    num_workers: 1
+    seed: 19920208
+    only_test_path: "None"
+    pretrained_path: "None"
+  Optimizer:
+    name: "Adam"                  # Adam / AdamW
+    learning_rate: 0.001           # initial learning rate
+    weight_decay: 1e-5            # initial weight decay         # Annealing applied to learning rate after each epoch
+    criterion: "BCELoss"
+  Model:
+    gnn_type: "GraphSAGE"
+    pool_type: "global_max_pool"
+    acfg_init_dims: 11
+    vocab_path: "src/classifier/models/malgraph/train_external_function_name_vocab.jsonl"
+    max_vocab_size: 10000
+    cfg_filters: "200-200"
+    fcg_filters: "200-200"
+    skip_att_heads: 0
+    dropout_rate: 0.3
+    ablation_models: "Full"
+    model_path: "saved_models/malgraph/best_malgraph_model.pt"
+    SCRIPT_PATH: "src/utils/acfg_extractor/graph_handle_acfg.py"
+    tmp_sample_root: "bypassed_samples/tmp_mal"
+

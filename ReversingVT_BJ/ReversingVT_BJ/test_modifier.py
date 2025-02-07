@@ -9,9 +9,9 @@ from modifier import Modifier
 
 perts = ["modify_dos_header","dos_stub","coff_header","rich_header","optional_header",
         "section_rename","section_add","section_append","content_shifting",
-        "jmp_overlay_back","overlay_append","instruction_change","resource_change","increase_section"]
+        "jmp_overlay_back","overlay_append","instruction_change","resource_change","increase_section", "malguise"]
 
-#perts = ["instruction_change","resource_change","increase_section"]
+#perts = ["malguise"]
 
 sample = "putty.exe"
 mod = Modifier(sample, "m_sample_2")
