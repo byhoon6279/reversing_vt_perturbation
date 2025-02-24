@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: pydasm
+Version: 1.5
+Summary: Python module wrapping libdasm
+Author: Ero Carrera
+Author-email: ero@dkbza.org

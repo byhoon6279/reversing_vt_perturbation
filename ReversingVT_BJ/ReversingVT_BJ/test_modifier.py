@@ -9,16 +9,38 @@ from modifier import Modifier
 
 perts = ["modify_dos_header","dos_stub","coff_header","rich_header","optional_header",
         "section_rename","section_add","section_append","content_shifting",
-        "jmp_overlay_back","overlay_append","instruction_change","resource_change","increase_section", "malguise"]
+        "jmp_overlay_back","overlay_append","instruction_change","resource_change","increase_section", "semantic_nop", "makeover"]
 
-#perts = ["malguise"]
+#perts = ["makeover"]
 
-sample = "putty.exe"
-mod = Modifier(sample, "m_sample_2")
+#input_dir = '../../semi_measure/Seed_malware/'
+#save_dir =  '../../semi_measure/AE/'
 
-for pert in perts:
-    print (pert)
-    eval("mod.{}()".format(pert))
+input_dir = './'
+save_dir =  './m_sample_2'
+
+#input_dir = '../../sample/benign/'
+#save_dir = '../../sample/sample_AE/benign'
+
+samples = [f for f in os.listdir(input_dir) if f.endswith(".exe")]
+
+for sample in samples:
+    print(sample)
+    if '.ipynb' in sample:
+        continue
+    full_sample_path = os.path.join(input_dir, sample)  # 전체 파일 경로 생성
+    mod = Modifier(full_sample_path, save_dir)
+    
+    for pert in perts:
+        print (pert)
+        eval("mod.{}()".format(pert))
+
+# sample = "putty.exe"
+# mod = Modifier(sample, "m_sample_2")
+
+# for pert in perts:
+#     print (pert)
+#     eval("mod.{}()".format(pert))
 
 '''
 mod.overlay_append()

@@ -30,7 +30,8 @@ from data_directory import *
 from instruction_change import *
 from resource_change import *
 from increase_section import *
-from malguise import *
+from semantic_nop import *
+from makeover import *
 
 class Modifier:
     def __init__(self, sample_path, opath):
@@ -192,8 +193,11 @@ class Modifier:
         args = (self.sample, self.root_sample, self.opath)
         increase_section(args)
         
-    def malguise(self):
+    def semantic_nop(self):
         args = (self.sample, self.root_sample, self.opath)
-        malguise(args)
-
+        semantic_nop(args)
+        
+    def makeover(self):
+        args = (self.sample, self.root_sample, self.opath)
+        makeover(args)
 

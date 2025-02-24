@@ -353,5 +353,5 @@ if __name__ == '__main__':
 
     call_addr_file = str(base_dir)+'/'+file_name + '.txt'
     call_addr_list = get_data(call_addr_file)
-    output_path = str(base_dir)+'/'+file_name.replace('.exe','_malguise.exe')
+    output_path = str(base_dir)+'/'+file_name.replace('.exe','_semantic_nop.exe')
     patch_yourself(file_path, call_addr_list, output_path)
