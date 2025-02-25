@@ -180,7 +180,7 @@ def liveness_analysis(code):
   # use[n] = registers read
   # in[n] = a register is live in if in use[n] or ...
   # out[n] = a register is live out if it is live in at a successor
-  for ins in list(code.values()):
+  for ins in code.values():
     ins.IN = set()
     ins.OUT = set()
   
@@ -191,7 +191,7 @@ def liveness_analysis(code):
     # 4, 3, 2, 1. See Table 10.6 in the textbook for an example.
     # Leonidas Fegaras
     # (https://lambda.uta.edu/cse5317/notes/node40.html)
-    for ins in reversed(list(code.values())):
+    for ins in reversed(code.values()):
       ins.IN_old = ins.IN.copy()
       ins.OUT_old = ins.OUT.copy()
       # out[n] = U_{s is successor of n} in[s]
@@ -207,7 +207,7 @@ def liveness_analysis(code):
         ins.IN = ins.USE | (ins.OUT - ins.DEF)
 
     # repeat until in'[n] == in[n] and out'[n] == out[n] for all n
-    for ins in list(code.values()):
+    for ins in code.values():
       if (ins.IN_old != ins.IN) or (ins.OUT_old != ins.OUT):
         break
     else:
@@ -373,7 +373,9 @@ def get_reg_swaps(live_regs):
   swaps = [] # <- MOVE BACK TO SET
   # filter out any registers that are not used
   reg_vals = [x for x in list(live_regs.values()) if not x.dont_touch()]
-  for reg, other in itertools.permutations(reg_vals, 2):
+  #for reg, other in itertools.permutations(reg_vals, 2):
+  for reg, other in list(itertools.permutations(reg_vals, 2)):
+
     for subset in reg.subsets:
       if subset.no_swap:
         continue
@@ -713,7 +715,9 @@ if __name__ == "__main__":
   import func
 
   # Find swappable registers in the function under the cursor
-  ida_func = idaapi.get_func(ScreenEA())
+#  ida_func = idaapi.get_func(ScreenEA())
+  ida_func = idaapi.get_func(idaapi.get_screen_ea())  # ✅ 최신 버전 호환
+
   if not ida_func:
     print("error: cursor is not under a function..")
   else:

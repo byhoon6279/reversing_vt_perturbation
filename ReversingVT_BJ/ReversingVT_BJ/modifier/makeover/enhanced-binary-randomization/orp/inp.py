@@ -11,11 +11,11 @@ import disp
 
 try:
   import inp_ida
-  for f in list(inp_ida.__dict__.keys()):
+  for f in list(inp_ida.__dict__.keys()):  # list() 추가
     globals()[f] = inp_ida.__dict__[f]
 except ImportError as e:
   import inp_dump
-  for f in list(inp_dump.__dict__.keys()):
+  for f in list(inp_dump.__dict__.keys()):  # list() 추가
     globals()[f] = inp_dump.__dict__[f]
 
 
@@ -39,8 +39,11 @@ def get_block_diff(block):
   """Returns a list of triplets of the form (ea, orig, new). Checks for diffs
   in block level using the instrs and rinstrs (=reordered) lists."""
 
-  orig_bytes = ''.join([i.bytes.decode('latin-1') for i in block.instrs])
-  reor_bytes = ''.join([i.bytes.decode('latin-1') for i in block.rinstrs])
+  #orig_bytes = ''.join([i.bytes.decode('latin-1') for i in block.instrs])
+  #reor_bytes = ''.join([i.bytes.decode('latin-1') for i in block.rinstrs])
+  orig_bytes = b''.join([i.bytes for i in block.instrs])  # b''로 bytes 사용
+  reor_bytes = b''.join([i.bytes for i in block.rinstrs])  # decode 제거
+
   diff = []
 
   for i, (orig, new) in enumerate(zip(orig_bytes, reor_bytes)):
@@ -77,14 +80,17 @@ def patch(diff, suffix, debug=False):
       # sanity check ..
       curr = pe_file.get_data(ea-base, 1)
       if curr != orig:
-        print(("error in patching", hex(ea), ":", ord(curr), "!=", ord(orig)))
+        #print(("error in patching", hex(ea), ":", ord(curr), "!=", ord(orig)))
+        print(("error in patching", hex(ea), ":", curr[0], "!=", ord(orig)))  # curr[0] 사용
 
       if not pe_file.set_bytes_at_rva(ea-base, new):
         print("error setting bytes")
 
   pe_file.write(patched)
   pe_file.close()
-  if not os.access(filename, os.X_OK):
+  #if not os.access(filename, os.X_OK):
+  if not os.access(patched, os.X_OK):  # filename → patched 변경
+
     # add execute permission
     existing_permissions = stat.S_IMODE(os.stat(patched).st_mode)
     new_permissions = existing_permissions | stat.S_IXUSR
@@ -120,7 +126,8 @@ def patch2(diff, patched_path):
       # sanity check ..
       curr = pe_file.get_data(ea-base, 1)
       if curr != orig:
-        print(("error in patching", hex(ea), ":", ord(curr), "!=", ord(orig)))
+        #print(("error in patching", hex(ea), ":", ord(curr), "!=", ord(orig)))
+        print(("error in patching", hex(ea), ":", curr[0], "!=", ord(orig)))  # curr[0] 사용
 
       if not pe_file.set_bytes_at_rva(ea-base, new):
         print("error setting bytes")
@@ -160,8 +167,11 @@ def get_reloc_diff(rinstrs):
         new_rva_h = ((new_rva >> 8) & 0xf) | 3 << 4 # 3 is HIGHLOW
         #print "relocations: %x %x %x %x %x %x %x" % (rva, new_rva, rva & 0xff,
         #      new_rva & 0xff, (rva >> 8) & 0xff, (new_rva >> 8) & 0xff, new_rva_h)
-        diff.append((foff+1, chr((rva >> 8) & 0xff), chr(new_rva_h)))
-        diff.append((foff, chr(rva & 0xff), chr(new_rva & 0xff)))
+        #diff.append((foff+1, chr((rva >> 8) & 0xff), chr(new_rva_h)))
+        #diff.append((foff, chr(rva & 0xff), chr(new_rva & 0xff)))
+        diff.append((foff+1, bytes([(rva >> 8) & 0xff]), bytes([new_rva_h])))
+        diff.append((foff, bytes([rva & 0xff]), bytes([new_rva & 0xff])))
+
 
   pe.write()
   pe.close()

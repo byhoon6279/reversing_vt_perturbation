@@ -260,7 +260,9 @@ def _merge_file(output):
     pe_out, epilog = peLib.read_pe(output)
 
     for s in range(pe_out.FILE_HEADER.NumberOfSections):
-        if 'reloc' in pe_out.sections[s].Name:
+#        if 'reloc' in pe_out.sections[s].Name:
+        if 'reloc' in pe_out.sections[s].Name.decode().rstrip('\x00'):
+
             reloc_ptr = pe_out.sections[s].PointerToRawData
             break
     reloc_size = pe_out.sections[s].SizeOfRawData
@@ -461,7 +463,7 @@ def displace_block(f, disp_state, min_dpf=None, max_dpf=None, \
     # set the diffs needed to fill the void (jump + nops) created
     # after displacement
     jmp_val = disp_state.ropf_start+disp_state.ropf_offset-instrs[0].addr-5
-    fill_bytes = struct.pack('<B', 0xE9) + struct.pack('<i', jmp_val) + \
+    fill_bytes = struct.pack('<B', 0xE9) + struct.pack('<i', jmp_val).encode() + \
                  semnops.get_semantic_nop(total_bytes-5)
     diffs = _compute_diffs(instrs, fill_bytes)
 
@@ -543,7 +545,7 @@ def transfer_disp_payload(target_binary, disp_state_source):
         for ins in instrs:
             n_ins_bytes += len(ins.bytes)
         trans_semnops_bin += semnops.get_semantic_nop(n_ins_bytes) + \
-                ''.join([''.join(semnop_bin) for semnop_bin in semnop_bins]) + \
+                b''.join([b''.join(semnop_bin) for semnop_bin in semnop_bins]) + \
                 semnops.get_semantic_nop(len(jmp_bin))
         
     # load pe, functions, and init disp_state
@@ -618,7 +620,7 @@ def transfer_disp_payload(target_binary, disp_state_source):
     # set the diffs needed to fill the void (jump + nops) created
     # after displacement
     jmp_val = disp_state.ropf_start+disp_state.ropf_offset-instrs[0].addr-5
-    fill_bytes = struct.pack('<B', 0xE9) + struct.pack('<i', jmp_val) + \
+    fill_bytes = struct.pack('<B', 0xE9) + struct.pack('<i', jmp_val).encode() + \
                  semnops.get_semantic_nop(total_bytes-5)
     diffs = _compute_diffs(instrs, fill_bytes)
 

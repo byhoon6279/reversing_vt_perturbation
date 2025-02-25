@@ -10,8 +10,11 @@ import time
 import hashlib
 random.seed(time.time())
 import sys
-sys.path.append('./modifier/makeover/enhanced-binary-randomization/')
-sys.path.append('./modifier/makeover/enhanced-binary-randomization/orp')
+sys.path.append('./enhanced-binary-randomization/')
+sys.path.append('./enhanced-binary-randomization/orp')
+
+#sys.path.append('./modifier/makeover/enhanced-binary-randomization/')
+#sys.path.append('./modifier/makeover/enhanced-binary-randomization/orp')
 
 import peLib
 import copy
@@ -28,10 +31,11 @@ from randtoolkit import reanalyze_functions, patch
 
 import argparse
 import os
+import traceback
 
-ALLOWED_TRANSFORMS = ['equiv', 'swap', 'preserv', \
-                      'reorder', 'disp', 'semnops'] # IPR + Disp
-# ALLOWED_TRANSFORMS = ['disp', 'semnops'] # Disp
+#ALLOWED_TRANSFORMS = ['equiv', 'swap', 'preserv', \
+#                      'reorder', 'disp', 'semnops'] # IPR + Disp
+ALLOWED_TRANSFORMS = ['disp', 'semnops'] # Disp
 # ALLOWED_TRANSFORMS = ['equiv', 'swap', 'preserv', 'reorder'] # IPR
 
 # ensure that the allowed transforms either have both disp and semnops or neither
@@ -233,5 +237,8 @@ if __name__=="__main__":
             except Exception as e:
                 log_file.write(f"Error processing {safe_bin_path}: {str(e)}\n")
                 print(f"⚠️ Error processing {safe_bin_path}: {e}")
+                traceback.print_exc()  # 🔥 트레이스백 출력 추가
+                log_file.write(f"Error processing {safe_bin_path}: {str(e)}\n")
+                traceback.print_exc(file=log_file)  # 🔥 트레이스백을 로그 파일에도 저장
 
 

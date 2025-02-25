@@ -86,7 +86,9 @@ class PEInfo:
 
     def getRelocationSize(self):
         for s in range(len(self.pe.sections)):
-            if b'reloc' in self.getSectionName(s):  # ✅ bytes → str 변환
+            #if b'reloc' in self.getSectionName(s):  # ✅ bytes → str 변환
+            if 'reloc' in self.getSectionName(s).decode('utf-8'):
+
                 return self.pe.OPTIONAL_HEADER.DATA_DIRECTORY[5].Size
         return 0
 
@@ -345,7 +347,9 @@ class AdjustPE:
 
         # Adjust relocation table in a .reloc section
         for s in range(self.peinfo.getNumOfSections()):
-            if b'reloc' in self.peinfo.getSectionName(s):  
+            #if b'reloc' in self.peinfo.getSectionName(s):  
+            if 'reloc' in self.peinfo.getSectionName(s).decode('utf-8'):
+
                 reloc_ptr = self.peinfo.getPointerToRawData(s)
 
         # !!! pefile keeps failing to write .reloc section !!!

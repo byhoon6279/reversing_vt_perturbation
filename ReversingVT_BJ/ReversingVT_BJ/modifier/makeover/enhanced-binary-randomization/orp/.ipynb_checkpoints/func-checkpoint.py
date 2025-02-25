@@ -129,8 +129,8 @@ class Function(object):
   def _get_instrs_graph(self):
     #initialize graph
     igraph = digraph()
-    igraph.add_nodes(iter(self.code.values()))
-    for ins in self.code.values():
+    igraph.add_nodes(self.code.values())
+    for ins in list(self.code.values()):
       for suc in ins.succ:
         igraph.add_edge((ins, self.code[suc]))
     return igraph
@@ -195,7 +195,7 @@ class Function(object):
       for push in pushes:
         # is there any case to have 'push esp' !?
         if len(push.USE) != 2 or "esp" not in push.USE:
-          print("WEIRD push instruction !?:", push)
+          print(("WEIRD push instruction !?:", push))
           continue
         reg = (push.USE-set(("esp",))).pop()
         # no need to put any extra check to the filter bellow for the leave case:
@@ -232,7 +232,7 @@ class Function(object):
     self.touches -= self.pre_regs
 
     if not self.arg_regs <= self.touches:
-      print("BUG: how can arg_regs not be subset of touched?", self)
+      print(("BUG: how can arg_regs not be subset of touched?", self))
 
     # final set (and most difficult) the return-value registers
     subtree_dict = {}
@@ -320,14 +320,15 @@ def classify_functions(functions):
   processed, curr_processed = set(), set()
   while len(processed) < len(functions):
     curr_processed.clear()
-    for func in [x for x in iter(functions.values()) if x.level == -2]:
-      if func.code_refs_from <= processed:
+    for func in [x for x in functions.values() if x.level == -2]:
+      #if func.code_refs_from <= processed:
+      if func.code_refs_from and func.code_refs_from <= processed:
         func.level = level
         curr_processed.add(func.addr)
     if curr_processed <= processed: # subset of processed
       #print "no more to analyze .. let's search for typed"
       curr_processed.clear() # we already had them .. 
-      for func in [x for x in iter(functions.values()) if x.level == -2]:
+      for func in [x for x in functions.values() if x.level == -2]:
         if func.ftype:
           func.level = level
           curr_processed.add(func.addr)
@@ -348,14 +349,14 @@ def analyze_functions(functions, levels):
   the USE-DEF sets of the appropriate call/ret functions."""
 
   #(imported) update info on callers of imported functions
-  for func in [x for x in iter(functions.values()) if x.level == -1]:
+  for func in [x for x in functions.values() if x.level == -1]:
     func.parse_ftype(func.ftype)
     func.update_callers_info(functions)
 
   #(classified) process each level of functions in order
   for l in range(levels):
     #print "\tanalyzing level-%d functions" % l
-    for func in [x for x in iter(functions.values()) if x.level == l]:
+    for func in [x for x in functions.values() if x.level == l]:
       func.analyze_registers(functions)
       # special case for typed functions
       if func.ftype: # typed functions that call unclassified ones
@@ -368,21 +369,21 @@ def analyze_functions(functions, levels):
   # updated calls and all the retns. such calls should only exist in
   # unclassified functions
   #print "\tanalyzing unclassified functions"
-  for func in [x for x in iter(functions.values()) if x.level == -2]:
+  for func in [x for x in functions.values() if x.level == -2]:
     func.update_calls()
 
   # now that all calls/retns are set, let's analyze the unclassified methods too
   # mostly for the preserved registers
-  for func in [x for x in iter(functions.values()) if x.level == -2]:
+  for func in [x for x in functions.values() if x.level == -2]:
     func.analyze_registers(functions)
     func.update_returns(set_default=True)
 
-  for func in [x for x in iter(functions.values()) if x.level == -2]:
+  for func in [x for x in functions.values() if x.level == -2]:
     func.update_callers_info(functions) #XXX XXX
 
   #print "counting the number of updated call instructions:"
   calls = updated = 0
-  for func in [x for x in iter(functions.values()) if hasattr(x, "instrs")]:
+  for func in [x for x in functions.values() if hasattr(x, "instrs")]:
     for ins in [x for x in func.instrs if x.mnem == "call"]:
       calls += 1
       if ins.updated:

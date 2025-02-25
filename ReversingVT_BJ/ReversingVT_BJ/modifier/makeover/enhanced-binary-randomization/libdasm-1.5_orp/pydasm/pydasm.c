@@ -898,53 +898,65 @@ PyObject *pydasm_get_instruction(PyObject *self, PyObject *args) {
     ssize_t data_length;
     char *data;
 
-    // 입력 인자 체크 (data, mode)
-    if (!args || PyObject_Length(args) != 2) {
-        PyErr_SetString(PyExc_TypeError, "Invalid number of arguments, 2 expected: (data, mode)");
+    // ✅ 인자 체크
+    if (!args || PyTuple_Size(args) != 2) {
+        PyErr_SetString(PyExc_TypeError, "Invalid number of arguments, expected (data, mode)");
         return NULL;
     }
 
-    // 첫 번째 인자: 버퍼 (바이너리 데이터)
+    // ✅ 첫 번째 인자: 바이너리 데이터 (Bytes)
     pBuffer = PyTuple_GetItem(args, 0);
-    if (!check_object(pBuffer)) {
-        PyErr_SetString(PyExc_ValueError, "Can't get buffer from arguments");
+    if (!pBuffer || !PyBytes_Check(pBuffer)) {
+        PyErr_SetString(PyExc_ValueError, "Expected bytes-like object for instruction data.");
         return NULL;
     }
 
-    // 두 번째 인자: 모드 (MODE_16, MODE_32)
+    // ✅ 두 번째 인자: 모드 (MODE_16, MODE_32)
     pMode = PyTuple_GetItem(args, 1);
-    if (!check_object(pMode)) {
-        PyErr_SetString(PyExc_ValueError, "Can't get mode from arguments");
+    if (!pMode || !PyLong_Check(pMode)) {
+        PyErr_SetString(PyExc_ValueError, "Expected integer value for mode.");
         return NULL;
     }
-
-    // mode를 long으로 변환
     mode = PyLong_AsLong(pMode);
 
-    // 버퍼 데이터를 문자열로 변환
-    PyBytes_AsStringAndSize(pBuffer, &data, &data_length);
+    // ✅ Python 3: PyBytes_AsStringAndSize() 사용
+    if (PyBytes_AsStringAndSize(pBuffer, &data, &data_length) == -1) {
+        PyErr_SetString(PyExc_ValueError, "Failed to extract instruction data.");
+        return NULL;
+    }
 
-    // get_instruction 호출: 디코딩
+    // 🚨 데이터 길이 체크: 비정상적으로 크면 예외 발생
+    if (data_length > 4096 || data_length <= 0) {
+        PyErr_SetString(PyExc_ValueError, "Invalid instruction data length.");
+        return NULL;
+    }
+
+    // 🚨 첫 번째 바이트가 0xFF인 경우 (손상 가능성)
+    if ((unsigned char)data[0] == 0xFF) {
+        fprintf(stderr, "[WARNING] Instruction decoding may be invalid: First byte is 0xFF\n");
+    }
+
+    // ✅ Instruction 디코딩 시도
     size = get_instruction(&insn, (unsigned char *)data, mode);
-
-    if (size == 0) {
-        // 🔥 디버깅 메시지 추가 (SSE/AVX 명령어 가능성 체크)
-        fprintf(stderr, "[ERROR] Instruction decoding failed. Data length: %ld, Mode: %d, First Byte: 0x%02x\n", 
+    
+    if (size == 0) {  
+        fprintf(stderr, "[ERROR] Instruction decoding failed.\n");
+        fprintf(stderr, "   - Data length: %ld, Mode: %d, First Byte: 0x%02x\n", 
                 data_length, mode, (unsigned char)data[0]);
 
-        // ❗ SSE/AVX 명령어 프리픽스 여부 확인
-        if ((unsigned char)data[0] == 0x66 || (unsigned char)data[0] == 0xF3 || (unsigned char)data[0] == 0xF2) {
-            fprintf(stderr, "[WARNING] Possible SSE/AVX instruction detected. libdasm may not support this opcode.\n");
+        // 🔥 추가 디버깅: 전체 바이트 덤프 출력
+        fprintf(stderr, "   - Raw Bytes: ");
+        for (ssize_t i = 0; i < (data_length < 10 ? data_length : 10); i++) {
+            fprintf(stderr, "%02x ", (unsigned char)data[i]);
         }
+        fprintf(stderr, "\n");
 
-        // 🔹 예외 발생 대신 `None` 반환
         Py_INCREF(Py_None);
         return Py_None;
     }
 
-    // Instruction 객체 생성
+    // ✅ Instruction 객체 생성 후 반환
     PyObject *instruction_obj = create_instruction_object(&insn);
-    
     if (!instruction_obj) {
         PyErr_SetString(PyExc_RuntimeError, "Failed to create Instruction object.");
         return NULL;
@@ -952,6 +964,7 @@ PyObject *pydasm_get_instruction(PyObject *self, PyObject *args) {
 
     return instruction_obj;
 }
+
 
 
 

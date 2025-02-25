@@ -56,8 +56,10 @@ def _non_displaceable(ins):
     global EIP_RELATIVE_1B
     global EIP_RELATIVE_2B
     if ins.mnem.lower() in EIP_RELATIVE_OPS:
-        if (not ord(ins.bytes[0]) in EIP_RELATIVE_1B) and \
-           (not (ord(ins.bytes[0]) + ord(ins.bytes[1])*256) in EIP_RELATIVE_2B):
+#         if (not ord(ins.bytes[0]) in EIP_RELATIVE_1B) and \
+#            (not (ord(ins.bytes[0]) + ord(ins.bytes[1])*256) in EIP_RELATIVE_2B):
+        if (ins.bytes[0] not in EIP_RELATIVE_1B) and   ((ins.bytes[0] + ins.bytes[1] * 256) not in EIP_RELATIVE_2B):
+
             return True
     return False
 
@@ -363,8 +365,10 @@ def displace_w_budget(functions, disp_state, budget, min_dpf=200, max_disp_instr
     """
 
     # shuffle the order of functions
-    functions = [f for f in [x for x in iter(functions.values()) if x.level != -1] \
-                 if not '_SEH_' in f.name]
+   # functions = [f for f in [x for x in iter(functions.values()) if x.level != -1] \
+   #              if not '_SEH_' in f.name]
+    functions = [f for f in list(functions.values()) if f.level != -1 and '_SEH_' not in f.name]
+
     random.shuffle(functions)
 
     # compute avg. budget per function:
@@ -544,7 +548,7 @@ def transfer_disp_payload(target_binary, disp_state_source):
         for ins in instrs:
             n_ins_bytes += len(ins.bytes)
         trans_semnops_bin += semnops.get_semantic_nop(n_ins_bytes) + \
-                ''.join([''.join(semnop_bin) for semnop_bin in semnop_bins]) + \
+                b''.join([b''.join(semnop_bin) for semnop_bin in semnop_bins]) + \
                 semnops.get_semantic_nop(len(jmp_bin))
         
     # load pe, functions, and init disp_state

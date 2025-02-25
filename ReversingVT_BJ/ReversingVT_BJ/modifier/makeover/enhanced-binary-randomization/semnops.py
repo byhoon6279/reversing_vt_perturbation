@@ -58,7 +58,7 @@ def combo_nop():
             return b'\x0f\xc9', b'\x0f\xc9'
         if reg=='edx':
             return b'\x0f\xca', b'\x0f\xca'
-    if combo_type=='xchg_l2h':
+    elif combo_type=='xchg_l2h':
         if reg=='eax':
             return b'\x86\xe0', b'\x86\xe0'
         if reg=='ebx':
@@ -67,7 +67,7 @@ def combo_nop():
             return b'\x86\xe9', b'\x86\xe9'
         if reg=='edx':
             return b'\x86\xf2', b'\x86\xf2'
-    if combo_type=='xchg_h2l':
+    elif combo_type=='xchg_h2l':
         if reg=='eax':
             return b'\x86\xc4', b'\x86\xc4'
         if reg=='ebx':
@@ -289,7 +289,9 @@ def reg_altering_nop(n_bytes, protected):
     any worries.
     """
 
-    assert(protected['ef']), 'Flags register has to be protected here!'
+#    assert(protected['ef']), 'Flags register has to be protected here!'
+    assert protected.get('ef', False), 'Flags register has to be protected here!'
+
     assert(n_bytes>0), 'n_bytes has to be positive!'
     assert(protected['eax'] or protected['ebx'] or \
            protected['ecx'] or protected['edx']), \
@@ -523,6 +525,10 @@ def reg_altering_nop(n_bytes, protected):
             
     # select an option at random
     # ✅ options 리스트에서 랜덤 선택
+    #choice = random.choice(options)
+    if not options:
+        raise ValueError("No valid semantic NOPs available")
+
     choice = random.choice(options)
 
     # ✅ 선택된 바이너리 값이 `str`이면 `bytes`로 변환
@@ -554,7 +560,7 @@ def get_semantic_nop(n_bytes, protected=None, start_idx=None, \
     representation fills n_bytes.
     """
 
-    print(f"DEBUG: Called get_semantic_nop with n_bytes={n_bytes}")  # 디버깅 코드
+    #print(f"DEBUG: Called get_semantic_nop with n_bytes={n_bytes}")  # 디버깅 코드
 
     # corners: 음수 방지
     if n_bytes <= 0:
@@ -680,15 +686,16 @@ def get_semantic_nop(n_bytes, protected=None, start_idx=None, \
         tmp2 = protected['ef']
         protected['eax'] = False
         protected['ef'] = True
-        n_bytes = n_bytes-len(pre)-len(suf)
+        #n_bytes = n_bytes-len(pre)-len(suf)
+        n_bytes = max(0, n_bytes - len(pre) - len(suf))
         mid, unconstrained_idxs = get_semantic_nop(n_bytes, protected, \
                                                    start_idx+len(pre), True)
-        if isinstance(pre, str):
-            pre = pre.encode('latin1')
+#         if isinstance(pre, str):
+#             pre = pre.encode('latin1')
         if isinstance(mid, str):
             mid = mid.encode('latin1')
-        if isinstance(suf, str):
-            suf = suf.encode('latin1')
+#         if isinstance(suf, str):
+#             suf = suf.encode('latin1')
             
         res = pre + mid + suf
         protected['eax'] = tmp1
@@ -716,12 +723,12 @@ def get_semantic_nop(n_bytes, protected=None, start_idx=None, \
         suf = suf.encode('latin1') if isinstance(suf, str) else suf
         mid, unconstrained_idxs = get_semantic_nop(n_bytes - len(pre) - len(suf), protected, start_idx + len(pre), True)
         
-        if isinstance(pre, str):
-            pre = pre.encode('latin1')
+#         if isinstance(pre, str):
+#             pre = pre.encode('latin1')
         if isinstance(mid, str):
             mid = mid.encode('latin1')
-        if isinstance(suf, str):
-            suf = suf.encode('latin1')
+#         if isinstance(suf, str):
+#             suf = suf.encode('latin1')
             
         res = pre + mid + suf
         
@@ -731,12 +738,12 @@ def get_semantic_nop(n_bytes, protected=None, start_idx=None, \
         suf = suf.encode('latin1') if isinstance(suf, str) else suf
         mid, unconstrained_idxs = get_semantic_nop(n_bytes - len(pre) - len(suf), protected, start_idx + len(pre), True)
         
-        if isinstance(pre, str):
-            pre = pre.encode('latin1')
+#         if isinstance(pre, str):
+#             pre = pre.encode('latin1')
         if isinstance(mid, str):
             mid = mid.encode('latin1')
-        if isinstance(suf, str):
-            suf = suf.encode('latin1')
+#         if isinstance(suf, str):
+#             suf = suf.encode('latin1')
         res = pre + mid + suf
 
         
@@ -746,8 +753,8 @@ def get_semantic_nop(n_bytes, protected=None, start_idx=None, \
         uidxs1 = [start_idx + idx for idx in uidxs1]
         suf, uidxs2 = get_semantic_nop(n_bytes - len(pre), protected, start_idx + len(pre), True)
         
-        if isinstance(pre, str):
-            pre = pre.encode('latin1')
+#         if isinstance(pre, str):
+#             pre = pre.encode('latin1')
         if isinstance(suf, str):
             suf = suf.encode('latin1')
         res = pre + suf
@@ -784,6 +791,9 @@ def do_semnops(f):
     changed_bytes = set()
     if hasattr(f, 'displaced_bytes'):
         for i in range(len(f.displaced_bytes)-1):
+            if not hasattr(f, 'displaced_bytes') or not isinstance(f.displaced_bytes, list):
+                return [], set()
+
             addresses = f.displaced_bytes[i]
             n_bytes = addresses[1]-addresses[0]-5+1
             semnop_bytes = get_semantic_nop(n_bytes)
@@ -795,7 +805,9 @@ def do_semnops(f):
     if hasattr(f, 'ropf_semnops'):
         for semnop_bin in f.ropf_semnops:
             new_semnop_bytes = get_semantic_nop(len(semnop_bin))
-            new_semnop_bin = [b for b in new_semnop_bytes]
+#            new_semnop_bin = [b for b in new_semnop_bytes]
+            new_semnop_bin = list(new_semnop_bytes)  # ✅ `bytes` → `list` 변환
+
             for i in range(len(semnop_bin)):
                 semnop_bin[i] = new_semnop_bin[i]
 
@@ -819,6 +831,6 @@ if __name__=='__main__':
     #     disas = pydasm.get_instruction_string(inst, pydasm.FORMAT_INTEL, 0)
     #     print('%s -> %s'%(bytes_str, disas))
     nop_bytes, uidxs = get_semantic_nop(40, get_unconstrained_idxs=True)
-    print(('nop bytes: %s'%(' '.join(['%02x'%ord(b) for b in nop_bytes]),)))
+    print(('nop bytes: %s' % (' '.join(['%02x' % b for b in nop_bytes]),)))
     print(('Unconstrained idxs: %s'%uidxs))
     

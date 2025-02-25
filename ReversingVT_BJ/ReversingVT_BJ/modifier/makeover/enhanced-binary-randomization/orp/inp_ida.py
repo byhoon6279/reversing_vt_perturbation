@@ -10,6 +10,7 @@ import idc
 import ida_auto
 import ida_bytes
 import ida_pro
+import ida_bytes
 
 import func
 import bbl
@@ -19,6 +20,7 @@ import pickle
 import pefile
 import util
 import pydasm
+from collections import OrderedDict
 
 __all__ = ["get_functions", "dump_data", "get_code_heads", "code_search",
 "max_ea", "byte_at", "bytes_at", "seg_start", "seg_end", "get_func_of"]
@@ -300,7 +302,7 @@ def code_segments_iter():
 def code_search(ea, val):
   """Search forward for the next occurance of val. Return None if no match."""
 
-  res = idc.FindBinary(ea, idc.SEARCH_DOWN, val)
+  res = idc.find_binary(ea, idc.SEARCH_DOWN, val)
 
   if res == idaapi.BADADDR:
     return None
@@ -311,13 +313,14 @@ def code_search(ea, val):
 def byte_at(ea):
   """Returns the byte at the given address."""
 
-  return idc.Byte(ea)
+  return ida_bytes.get_byte(ea)
 
 
 def max_ea(): # TODO: check!!
   """Returns the max effective address for this binary."""
 
-  return idc.MaxEA()
+  #return idc.MaxEA()
+  return idaapi.get_inf_structure().max_ea
 
 
 def bytes_at(ea, num):
@@ -329,13 +332,15 @@ def bytes_at(ea, num):
 def seg_start(ea):
   """Returns the start of the segment that ea belongs in."""
 
-  return idc.SegStart(ea)
+  #return idc.SegStart(ea)
+  return idaapi.get_segm_start(ea)
 
 
 def seg_end(ea):
   """Returns the end of the segment that ea belongs in."""
 
-  return idc.SegEnd(ea)
+#  return idc.SegEnd(ea)
+  return idaapi.get_segm_end(ea)
 
 
 def get_func_of(ea):

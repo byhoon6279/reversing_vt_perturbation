@@ -42,22 +42,43 @@ except ImportError as e:
   print("pygraph is not installed")
   sys.exit(1)
 
+import os
+
 def patch(pe_file, diffs):
   """
-  patch the pe_file according to the provided diffs
-  (i.e., apply the diffs). The code is based on inp.patch().
+  Patch the pe_file according to the provided diffs (apply the diffs).
   """
   base = pe_file.OPTIONAL_HEADER.ImageBase
+  
+  # 파일이 read-only 상태인지 확인하고 쓰기 가능하도록 변경
+  if not os.access(pe_file.filename, os.W_OK):
+    print(f"File {pe_file.filename} is read-only. Changing permissions...")
+    os.chmod(pe_file.filename, 0o666)  # 쓰기 가능하도록 변경
+  
   for ea, orig, new in diffs:
-    if ea < base:
-      if not pe_file.set_bytes_at_offset(ea, new):
-        print("error setting bytes")
-    else:
-      curr = pe_file.get_data(ea-base, 1)
-      if curr != orig:
-        print("error in patching", hex(ea), ":", ord(curr), "!=", ord(orig))
-      if not pe_file.set_bytes_at_rva(ea-base, new):
-        print("error setting bytes")
+    
+    # (1) 주소가 유효한지 확인
+    if not (0 <= ea - base < len(pe_file.__data__)):
+      print(f"Invalid write attempt at {hex(ea)} (base: {hex(base)})")
+      continue  # 건너뛰기
+
+    # (2) 현재 바이트와 예상 바이트가 다른 경우 확인
+    curr = pe_file.get_data(ea - base, 1)
+    if curr != orig:
+      print(f"Warning: mismatch at {hex(ea)} - expected {orig}, found {curr}")
+      force_patch = True  # 강제 패치 여부
+      if not force_patch:
+        continue  # 원래 값이 다르면 건너뛰기
+
+    # (3) 바이트 수정 적용
+    try:
+      if ea < base:
+        pe_file.set_bytes_at_offset(ea, new)
+      else:
+        pe_file.set_bytes_at_rva(ea - base, new)
+    except Exception as e:
+      print(f"Failed to set bytes at {hex(ea)}: {e}")
+
 
 def randomize(input_file, n_randomize=10):
 
@@ -72,7 +93,9 @@ def randomize(input_file, n_randomize=10):
   for i_r in range(n_randomize):
     # copy pe_file and functions
     #pe_file = copy.deepcopy(pe_file)
-    functions = copy.deepcopy(functions)
+#    functions = copy.deepcopy(functions)
+    functions = copy.copy(functions)  # 얕은 복사 사용
+
   
     global_diffs = []
     changed_bytes = set()

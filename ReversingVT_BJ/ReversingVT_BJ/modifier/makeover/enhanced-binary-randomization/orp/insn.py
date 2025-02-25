@@ -37,8 +37,11 @@ class Operand(object):
     self.type = pydasm_op.type
     if pydasm_op.type==pydasm.OPERAND_TYPE_IMMEDIATE:
       self.immediate_value = pydasm_op.immediate
-      if self.immediate_value > 0x7FFFFFFF:
-        self.immediate_value -= 0x100000000
+      #if self.immediate_value > 0x7FFFFFFF:
+        #self.immediate_value -= 0x100000000
+      if isinstance(self.immediate_value, bytes):
+        self.immediate_value = int.from_bytes(self.immediate_value, 'little', signed=True)
+
     else:
       self.immediate_value = None
 
@@ -105,7 +108,9 @@ class Instruction(object):
     apply the changes
     """
     self.regs = self.cregs.copy()
-    self.bytes = str(self.cbytes)
+#    self.bytes = str(self.cbytes)
+    self.bytes = bytes(self.cbytes)
+
     inst = pydasm.get_instruction(self.bytes, pydasm.MODE_32)
     if inst == None:
       inst = nop
@@ -126,7 +131,9 @@ class Instruction(object):
     self.reset_changed()
     
   def is_ind_call(self):
-    return self.mnem == "call" and self.bytes[0] == '\xff'
+    #return self.mnem == "call" and self.bytes[0] == '\xff'
+    return self.mnem == "call" and self.bytes[0] == 0xFF
+
 
   def swap_registers(self, r1, r2):
     """Swaps the registers of the instruction and checks if the resulting one
@@ -152,7 +159,8 @@ class Instruction(object):
     #print r1, r2
     
     # check if the swap is feasible
-    bytes = self.cbytes[:]
+    #bytes = self.cbytes[:]
+    bytes = self.cbytes.copy()
     if r1 in self.cregs:
       try:
         update_bits(r1, r2, bytes, self.cregs)
