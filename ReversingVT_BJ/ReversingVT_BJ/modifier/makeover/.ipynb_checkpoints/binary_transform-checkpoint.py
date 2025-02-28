@@ -33,9 +33,9 @@ import argparse
 import os
 import traceback
 
-#ALLOWED_TRANSFORMS = ['equiv', 'swap', 'preserv', \
-#                      'reorder', 'disp', 'semnops'] # IPR + Disp
-ALLOWED_TRANSFORMS = ['disp', 'semnops'] # Disp
+ALLOWED_TRANSFORMS = ['equiv', 'swap', 'preserv', \
+                      'reorder', 'disp', 'semnops'] # IPR + Disp
+#ALLOWED_TRANSFORMS = ['disp', 'semnops'] # Disp
 # ALLOWED_TRANSFORMS = ['equiv', 'swap', 'preserv', 'reorder'] # IPR
 
 # ensure that the allowed transforms either have both disp and semnops or neither

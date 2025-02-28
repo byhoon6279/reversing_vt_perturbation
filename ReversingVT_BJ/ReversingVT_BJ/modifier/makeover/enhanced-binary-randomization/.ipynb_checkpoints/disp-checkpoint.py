@@ -188,69 +188,79 @@ def _compute_diffs(instrs, fill_bytes):
     return diffs
 
 def _extract_rel_addr(op_bytes, mnemonic_type):
-        """
-        Extract the relative address at the level from the
-        binary operation (borrowed from Koo's and Polychronakis'
-        implementation).
-        """
-        addr = 0x0
-        mask = 0x0
+    """
+    Extract the relative address at the level from the
+    binary operation (borrowed from Koo's and Polychronakis'
+    implementation).
+    """
+    addr = 0x0
+    mask = 0x0
 
-        # Aside from mnemonic bytes, all remaining bytes would be a
-        # target address (1B, 2B, or 4B). 'Mask' helps to convert a
-        # negative value if target address is less than 4B
-        for i in range(len(op_bytes[mnemonic_type:])):
-            addr |= ord(op_bytes[mnemonic_type + i]) << (8 * i)
-        if mnemonic_type == 1:  # 1 byte
-            mask |= 0xffffff00
-        if mnemonic_type == 2:  # 2 bytes
-            mask |= 0xffff0000
+    # Aside from mnemonic bytes, all remaining bytes would be a
+    # target address (1B, 2B, or 4B). 'Mask' helps to convert a
+    # negative value if target address is less than 4B
+    for i, byte in enumerate(op_bytes[mnemonic_type:]):
+        addr |= byte << (8 * i)
 
-        # If MSB is set in a target address, the result should be
-        # masked - check some examples:
-        #   1B: [0x74, 0xc] -> 0xe
-        #   1B: [0xeb, 0xed] -> 0xffffffef (not 0xef)
-        #   1B: [0xe9, 0xd6, 0xa9, 0xff, 0xff] -> 0xffffa9db
-        #   2B: [0x0f, 0x84, 0x88, 0x0, 0x0, 0x0] -> 0x8e
-        if (i + 1 == 1 and ord(op_bytes[1]) & (1 << (8 * mnemonic_type - 1)) > 0) or \
-                (i + 1 == 2 and ord(op_bytes[3]) & (1 << (8 * mnemonic_type - 1)) > 0):
-            return mask | (addr + len(op_bytes))
-        return addr + len(op_bytes)
+    if mnemonic_type == 1:  # 1 byte
+        mask |= 0xffffff00
+    elif mnemonic_type == 2:  # 2 bytes
+        mask |= 0xffff0000
+
+    # If MSB is set in a target address, the result should be masked
+    if (
+        (i + 1 == 1 and op_bytes[1] & (1 << (8 * mnemonic_type - 1)) > 0) or
+        (i + 1 == 2 and op_bytes[3] & (1 << (8 * mnemonic_type - 1)) > 0)
+    ):
+        return mask | (addr + len(op_bytes))
+
+    return addr + len(op_bytes)
+
+
 
 def _get_eip_relative_addr(ins, disp_addr):
     """
-    given an instruction with operation relative to EIP,
-    update the instruction's bytes so that it would work
-    after displacement.
+    Given an instruction with an operation relative to EIP,
+    update the instruction's bytes so that it works after displacement.
     """
-    # find mnem type
+
     global EIP_RELATIVE_1B
     global EIP_RELATIVE_2B
+
+    # Determine mnemonic type
     mnem_type = 0
-    if ord(ins.bytes[0]) in EIP_RELATIVE_1B:
+    ins_bytes = ins.bytes
+
+    if ins_bytes[0] in EIP_RELATIVE_1B:
         mnem_type = 1
-    elif ord(ins.bytes[0]) + ord(ins.bytes[1])*256 in EIP_RELATIVE_2B:
+    elif len(ins_bytes) > 1 and (ins_bytes[0] + (ins_bytes[1] << 8)) in EIP_RELATIVE_2B:
         mnem_type = 2
-    # if instruction is truly relative to EIP, then
-    # store the old bytes, and update the address
+
+    # If instruction is truly relative to EIP, update the address
     new_bytes = None
-    if mnem_type>0:
+    if mnem_type > 0:
         try:
             rel_addr = _extract_rel_addr(ins.bytes, mnem_type)
-        except:
+        except Exception as e:
+            print(f"⚠️ Error extracting relative address at {hex(ins.addr)}: {e}")
             return None
-        new_addr = ((rel_addr - disp_addr + ins.addr) & 0xffffffff)
-        if mnem_type==1:
-            mnem_bytes = EIP_RELATIVE_OPS[EIP_RELATIVE_1B[ord(ins.bytes[0])]]
-            if mnem_bytes<=0xff:
-                new_bytes = struct.pack('<B', mnem_bytes) + \
-                            struct.pack('<I', new_addr-5)
+
+        # Calculate the new relative address after displacement
+        new_addr = ((rel_addr - disp_addr + ins.addr) & 0xFFFFFFFF)
+
+        if mnem_type == 1:
+            mnem_bytes = EIP_RELATIVE_OPS[EIP_RELATIVE_1B[ins_bytes[0]]]
+            if mnem_bytes <= 0xFF:
+                new_bytes = struct.pack('<B', mnem_bytes) + struct.pack('<I', new_addr - 5)
             else:
-                new_bytes = struct.pack('<H', mnem_bytes) + \
-                            struct.pack('<I', new_addr-6)
+                new_bytes = struct.pack('<H', mnem_bytes) + struct.pack('<I', new_addr - 6)
         else:
-            new_bytes = ins.bytes[:mnem_type] + struct.pack('<I', new_addr-6)
+            new_bytes = ins.bytes[:mnem_type] + struct.pack('<I', new_addr - 6)
+
     return new_bytes
+
+
+
     
 def _merge_file(output):
     """
@@ -345,13 +355,20 @@ class DispState:
         """
         get the binary representation of .ropf section
         """
-        dbin = b''  # ✅ 초기화를 bytes 타입으로 변경
+        dbin = b''  # ✅ 초기화는 bytes 타입
         for instrs, semnop_bins, jmp_bin in self.moving_instrs:
             for ins in instrs:
-                dbin += ins.bytes  # ✅ bytes + bytes 이므로 오류 발생 안 함
-            dbin += b''.join([b''.join(semnop_bin) for semnop_bin in semnop_bins])  # ✅ 변환
-            dbin += jmp_bin
+                dbin += ins.bytes  # ✅ bytes + bytes 연산 가능
+
+            dbin += b''.join([b''.join(semnop_bin) for semnop_bin in semnop_bins])  # ✅ bytes 변환
+
+            # 🔥 jmp_bin이 str이면 bytes로 변환
+            if isinstance(jmp_bin, str):
+                jmp_bin = jmp_bin.encode('utf-8')  # ✅ str → bytes 변환
+
+            dbin += jmp_bin  # ✅ 이제 오류 없음
         return dbin
+
 
 
 

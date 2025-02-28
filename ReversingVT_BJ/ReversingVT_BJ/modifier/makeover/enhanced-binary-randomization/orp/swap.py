@@ -13,6 +13,9 @@ import randtoolkit
 from pygraph.algorithms.filters.null import null as null_filter
 from pygraph.algorithms.searching import breadth_first_search
 from functools import reduce
+import capstone
+
+md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
 
 class Lifetime:
   """Represents the lifetime of a register as a set of "Subsets"."""
@@ -170,104 +173,141 @@ class Swap:
             max((i.pos for i in self.subset.instr_set))]
 
 def liveness_analysis(code):
-  """Performs instruction-level liveness analysis and fills in the 
-  IN and OUT sets of each instruction."""
+    """Performs instruction-level liveness analysis using Capstone and fills the IN/OUT sets."""
+    
+    # ✅ Capstone 초기화 (Detail 활성화)
+    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    md.detail = True  # 🔥 핵심 옵션 추가
 
-  convergence = False
-  i = 0
+    convergence = False
+    i = 0
 
-  # def[n] = registers written
-  # use[n] = registers read
-  # in[n] = a register is live in if in use[n] or ...
-  # out[n] = a register is live out if it is live in at a successor
-  for ins in code.values():
-    ins.IN = set()
-    ins.OUT = set()
-  
-  while not convergence:
-    i += 1
-    # The algorithm converges very fast if we consider the CFG nodes
-    # in the reverse order (when is possible), ie, in the order 6, 5,
-    # 4, 3, 2, 1. See Table 10.6 in the textbook for an example.
-    # Leonidas Fegaras
-    # (https://lambda.uta.edu/cse5317/notes/node40.html)
-    for ins in reversed(code.values()):
-      ins.IN_old = ins.IN.copy()
-      ins.OUT_old = ins.OUT.copy()
-      # out[n] = U_{s is successor of n} in[s]
-      ins.OUT = reduce(lambda x, y: x | y, [code[s].IN for s in ins.succ], set())
-      # ins[n] = use[n] U (out[n] - def[n])
-      if ins.mnem=='call':
-        # Be careful not to swap registers that are implicitly
-        # used by call (e.g., if eax is used for sending arguments,
-        # we should be careful not to swap it)
-        ins.IN = ins.USE | ins.implicit | (ins.OUT - ins.DEF)
-      else:
-        # normal case
-        ins.IN = ins.USE | (ins.OUT - ins.DEF)
-
-    # repeat until in'[n] == in[n] and out'[n] == out[n] for all n
+    # Initialize the liveness sets
     for ins in code.values():
-      if (ins.IN_old != ins.IN) or (ins.OUT_old != ins.OUT):
-        break
-    else:
-      # for loop fell through without finding any IN/OUT difference
-      convergence = True
+        ins.IN = set()
+        ins.OUT = set()
+    
+    while not convergence:
+        i += 1
+        for ins in reversed(code.values()):
+            ins.IN_old = ins.IN.copy()
+            ins.OUT_old = ins.OUT.copy()
+
+            # out[n] = U_{s is successor of n} in[s]
+            ins.OUT = reduce(lambda x, y: x | y, [code[s].IN for s in ins.succ], set())
+
+            # ✅ Capstone 명령어 분석
+            capstone_insn = next(md.disasm(ins.bytes, ins.addr), None)
+
+            if capstone_insn:
+                try:
+                    ins.USE = set(capstone_insn.regs_read)
+                    ins.DEF = set(capstone_insn.regs_write)
+                except capstone.CsError:
+                    ins.USE = set()
+                    ins.DEF = set()
+                    print(f"⚠️ Capstone failed to retrieve register details at {hex(ins.addr)}")
+
+                # Call instruction 처리
+                if capstone_insn.mnemonic == 'call':
+                    ins.IN = ins.USE | ins.implicit | (ins.OUT - ins.DEF)
+                else:
+                    ins.IN = ins.USE | (ins.OUT - ins.DEF)
+
+        # Check for convergence
+        for ins in code.values():
+            if (ins.IN_old != ins.IN) or (ins.OUT_old != ins.OUT):
+                break
+        else:
+            convergence = True
+
+
 
 def get_reg_live_subsets(instrs, code, igraph):
-  """Computes the subsets of the instructions where each register is live.
-  Retunrs a dictionary keyed with the register name."""
+    """
+    Computes the subsets of the instructions where each register is live.
+    Returns a dictionary keyed with the register name.
+    """
 
-  # compute the live subsets
-  live_regs = dict()
-  for reg in ('eax', 'ebx', 'ecx', 'edx', 'edi', 'esi', 'ebp', 'esp'): #TODO: insn.REGS[:8]
-    live_regs[reg] = Lifetime(reg, len(instrs))
-  
-  class live_filter(null_filter):
-    def __call__(self, other, node):
-      # always check 'other' which is the candidate. (includes root)
-      # but also check if node is set which takes care of root
-      if node and self.cur_reg not in other.IN:
-        #print "forward filtered %s from %s (reg=%s)" % ( 
-        #    str(other), str(node), self.cur_reg)
-        return False
-      return True
+    general_regs = {"eax", "ebx", "ecx", "edx", "edi", "esi", "ebp", "esp"}
+    extended_regs = {"ax", "bx", "cx", "dx", "di", "si", "bp", "sp"}  # 16-bit 레지스터 추가
+    byte_regs = {"al", "ah", "bl", "bh", "cl", "ch", "dl", "dh"}  # 8-bit 레지스터 추가
+    special_regs = {"eip", "eflags", "fpsw"}
+    fpu_regs = {"st(0)", "st(1)", "st(2)", "st(3)", "st(4)", "st(5)", "st(6)", "st(7)"}
+    mmx_regs = {"mm0", "mm1", "mm2", "mm3", "mm4", "mm5", "mm6", "mm7"}
+    sse_regs = {"xmm0", "xmm1", "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"}
 
-  # compute live regions for register values "born" withing this function
-  live_f = live_filter()
-  for ins in instrs:
-    diff = ins.OUT - ins.IN
-    if len(diff) > 1 and ins.mnem not in ("call", "cpuid", "rdtsc"):
-      print(("WARNING: more than one regs defined at", ins, ins.OUT, ins.IN))
-    for reg in diff:
-      live_f.cur_reg = reg
-      st, order = breadth_first_search(igraph, ins, live_f)
-      live_regs[live_f.cur_reg].add_subset(order)
+    # 🔥 모든 고려해야 하는 레지스터 합치기
+    all_valid_regs = general_regs | extended_regs | byte_regs | special_regs | fpu_regs | mmx_regs | sse_regs
 
-  # if a DEFed register is not in OUT it's an one-instr live region.
-  # if that register is also in the implicit set of the instruction,
-  # it will be marked as unswappable
-  for ins in instrs:
-    for reg in ins.DEF:
-      if reg not in ins.OUT:
-        #print "one-instr live region, register", reg, " in ", ins
-        live_regs[reg].add_subset([ins])
 
-  # add live regions for registers that where alive before this function
-  # was called.
-  if not instrs[0].f_entry: # debug!
-    print("BUG: compute_live: instrs[0] is not f_entry!!!")
+    # 🔥 모든 레지스터를 처리할 수 있도록 초기화
+    live_regs = {reg: Lifetime(reg, len(instrs)) for reg in all_valid_regs}
 
-  #print "compute_live_regions: checking", instrs[0]
-  for reg in instrs[0].IN:
-    #print "compute_live_regions: checking", reg, "in", instrs[0]
-    live_f.cur_reg = reg
-    st, order = breadth_first_search(igraph, instrs[0], live_f)
-    #print reg, "live region", [i.pos for i in order]
-    # let's handle the special case of region splitting for indirect calls
-    live_regs[live_f.cur_reg].add_subset(order)
+    class LiveFilter(null_filter):
+        def __call__(self, other, node):
+            return node is None or self.cur_reg in other.IN
 
-  return live_regs
+    live_f = LiveFilter()
+    for ins in instrs:
+        diff = ins.OUT - ins.IN
+        if len(diff) > 1 and ins.mnem in {"call", "cpuid", "rdtsc"}:
+            print(f"WARNING: More than one regs defined at {ins} {ins.OUT} {ins.IN}")
+
+        for reg in diff:
+            if isinstance(reg, int):  # 🔥 정수형 레지스터 변환
+                reg = md.reg_name(reg)
+                if not reg:  # 변환 실패 시 무시
+                    print(f"⚠️ Warning: Unknown register ID {reg} encountered, skipping...")
+                    continue
+
+            if reg not in all_valid_regs:
+                print(f"⚠️ Warning: Skipping unexpected register '{reg}' in DEF.")
+                continue
+
+            live_f.cur_reg = reg
+            _, order = breadth_first_search(igraph, ins, live_f)
+            live_regs[reg].add_subset(order)
+
+    # Handle one-instruction live regions
+    for ins in instrs:
+        for reg in ins.DEF:
+            if isinstance(reg, int):  # 🔥 정수형 변환
+                reg = md.reg_name(reg)
+                if not reg:
+                    print(f"⚠️ Warning: Unknown register ID {reg} encountered, skipping...")
+                    continue
+
+            if reg not in all_valid_regs:
+                print(f"⚠️ Warning: Skipping unexpected register '{reg}' in DEF.")
+                continue
+
+            if reg not in ins.OUT:
+                live_regs[reg].add_subset([ins])
+
+    # Handle live registers from function entry
+    if not instrs[0].f_entry:
+        print("BUG: compute_live: instrs[0] is not f_entry!!!")
+
+    for reg in instrs[0].IN:
+        if isinstance(reg, int):  # 🔥 정수형 변환
+            reg = md.reg_name(reg)
+            if not reg:
+                print(f"⚠️ Warning: Unknown register ID {reg} encountered, skipping...")
+                continue
+
+        if reg not in all_valid_regs:
+            print(f"⚠️ Warning: Skipping unexpected register '{reg}' in function entry.")
+            continue
+
+        live_f.cur_reg = reg
+        _, order = breadth_first_search(igraph, instrs[0], live_f)
+        live_regs[reg].add_subset(order)
+
+    return live_regs
+
+
+
 
 
 #TODO: splitting is not 100% .. first, we stop after we find just one split
@@ -367,48 +407,38 @@ def split_reg_live_subsets(live_regs, code):
 
 
 def get_reg_swaps(live_regs):
-  """Given all the registers' live subsets, check which of them can
-  be swapped. Returns a list with Swap objects."""
+    """Finds all possible register swaps using Capstone."""
+    swaps = []
+    reg_vals = [x for x in live_regs.values() if not x.dont_touch()]
 
-  swaps = [] # <- MOVE BACK TO SET
-  # filter out any registers that are not used
-  reg_vals = [x for x in list(live_regs.values()) if not x.dont_touch()]
-  #for reg, other in itertools.permutations(reg_vals, 2):
-  for reg, other in list(itertools.permutations(reg_vals, 2)):
+    for reg, other in itertools.permutations(reg_vals, 2):
+        for subset in reg.subsets:
+            if subset.no_swap:
+                continue
+            swap_subset = other.get_swap_subset(subset, reg)
+            if swap_subset is not None and swap_subset.size > 0:
+                swaps.append(Swap(reg, other, swap_subset))
 
-    for subset in reg.subsets:
-      if subset.no_swap:
-        continue
-      # print "ASDASD", reg, subset
-      swap_subset = other.get_swap_subset(subset, reg)
-      if swap_subset != None and swap_subset.size == 0:
-        print("BUG: empty subset in get_swap_subset")
-        continue
-      if swap_subset != None:
-        swaps.append(Swap(reg, other, swap_subset)) # <-BACK TO SET!
+    return swaps
 
-  return list(swaps)
 
 
 def apply_swap_comb(swap_comb):
-  """Applies each swap in the combination by updating ins.cregs and ins.cbytes.
-  Returns a boolean indicating whether this swap combination can be applied and
-  the set of changed instructions."""
+    """Applies each swap in the combination by updating Capstone disassembly."""
+    
+    changed = set()
+    failed = False
+    
+    for swap in swap_comb:
+        for ins in swap.get_instrs():
+            if swap.reg1.name in ins.regs or swap.reg2.name in ins.regs:
+                changed.add(ins)
+                if not ins.swap_registers(swap.reg1.name, swap.reg2.name):
+                    failed = True
+                    break
 
-  changed = set()
-  failed = False
-  
-  #apply swaps
-  for swap in swap_comb:
-    for ins in swap.get_instrs():
-      # r1, r2 have original register names, as Instruction.regs does
-      if swap.reg1.name in ins.regs or swap.reg2.name in ins.regs:
-        changed.add(ins)
-        if not ins.swap_registers(swap.reg1.name, swap.reg2.name):
-          failed = True
-          break
+    return not failed, changed
 
-  return not failed, changed
 
 def bound_comparison(swap1, swap2):
   """
@@ -443,14 +473,29 @@ def reg_overlap(swap1, swap2):
   return False
 
 def swap_to_key(swap):
-  regs = ['eax', 'ebx', 'ecx', 'edx', 'edi', 'esi', 'ebp', 'esp']
-  reg_to_idx = dict(list(zip(regs,list(range(len(regs))))))
-  bounds = swap.bounds()
-  key = (bounds[1]-bounds[0])*1000000
-  key += bounds[0]*100
-  key += max([reg_to_idx[swap.reg1.name], reg_to_idx[swap.reg2.name]])*10
-  key += min([reg_to_idx[swap.reg1.name], reg_to_idx[swap.reg2.name]])
-  return key
+    """
+    주어진 swap 객체에 대해 정렬 가능한 키를 생성하는 함수.
+    - 레지스터 순서를 유지하면서 bounds 값을 활용하여 고유한 정렬 키를 만듦.
+    """
+    regs = ['eax', 'ebx', 'ecx', 'edx', 'edi', 'esi', 'ebp', 'esp']
+    reg_to_idx = {reg: idx for idx, reg in enumerate(regs)}
+
+    # swap의 범위를 가져옴
+    bounds = swap.bounds()
+    start, end = bounds[0], bounds[1]
+
+    # swap 대상 레지스터 인덱스 가져오기
+    reg1_idx = reg_to_idx.get(swap.reg1.name, -1)  # 존재하지 않으면 -1 (예외 방지)
+    reg2_idx = reg_to_idx.get(swap.reg2.name, -1)
+
+    # 정렬을 위한 키 생성
+    key = (end - start) * 1_000_000  # 범위 길이에 가중치 부여
+    key += start * 100  # 시작 주소 반영
+    key += max(reg1_idx, reg2_idx) * 10  # 큰 레지스터 인덱스 우선
+    key += min(reg1_idx, reg2_idx)  # 작은 레지스터 인덱스 추가
+
+    return key
+
 
 def can_swap(f):
   """

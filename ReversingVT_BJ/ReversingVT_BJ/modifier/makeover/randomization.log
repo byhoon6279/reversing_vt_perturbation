@@ -884,3 +884,817 @@ TypeError: patch() missing 1 required positional argument: 'diffs'
 Randomizing "./example/caffeine.exe"...
 Randomizing "./example/caffeine.exe"...
 Randomizing "./example/caffeine.exe"...
+Randomizing "./example/iexplore_32.exe"...
+Error processing ./example/iexplore_32.exe: 'NoneType' object is not iterable
+Error processing ./example/iexplore_32.exe: 'NoneType' object is not iterable
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 360, in analyze_functions
+    func.analyze_registers(functions)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 181, in analyze_registers
+    if not self.check_SEH_preservs(functions):
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 158, in check_SEH_preservs
+    for ref in self.code_refs_from:
+TypeError: 'NoneType' object is not iterable
+Randomizing "./example/hello.exe"...
+Error processing ./example/hello.exe: 'NoneType' object is not iterable
+Error processing ./example/hello.exe: 'NoneType' object is not iterable
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 360, in analyze_functions
+    func.analyze_registers(functions)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 181, in analyze_registers
+    if not self.check_SEH_preservs(functions):
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 158, in check_SEH_preservs
+    for ref in self.code_refs_from:
+TypeError: 'NoneType' object is not iterable
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'NoneType' object is not iterable
+Error processing ./example/caffeine.exe: 'NoneType' object is not iterable
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 360, in analyze_functions
+    func.analyze_registers(functions)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 181, in analyze_registers
+    if not self.check_SEH_preservs(functions):
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 158, in check_SEH_preservs
+    for ref in self.code_refs_from:
+TypeError: 'NoneType' object is not iterable
+Randomizing "./example/putty.exe"...
+Error processing ./example/putty.exe: 'NoneType' object is not iterable
+Error processing ./example/putty.exe: 'NoneType' object is not iterable
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 360, in analyze_functions
+    func.analyze_registers(functions)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 181, in analyze_registers
+    if not self.check_SEH_preservs(functions):
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 158, in check_SEH_preservs
+    for ref in self.code_refs_from:
+TypeError: 'NoneType' object is not iterable
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/iexplore_32.exe"...
+Error processing ./example/iexplore_32.exe: 'Instruction' object has no attribute 'updated'
+Error processing ./example/iexplore_32.exe: 'Instruction' object has no attribute 'updated'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 370, in analyze_functions
+    func.update_calls()
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 279, in update_calls
+    if not ins.updated: #damn
+AttributeError: 'Instruction' object has no attribute 'updated'
+Randomizing "./example/hello.exe"...
+Error processing ./example/hello.exe: 'Instruction' object has no attribute 'updated'
+Error processing ./example/hello.exe: 'Instruction' object has no attribute 'updated'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 370, in analyze_functions
+    func.update_calls()
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 279, in update_calls
+    if not ins.updated: #damn
+AttributeError: 'Instruction' object has no attribute 'updated'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Instruction' object has no attribute 'updated'
+Error processing ./example/caffeine.exe: 'Instruction' object has no attribute 'updated'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 370, in analyze_functions
+    func.update_calls()
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 279, in update_calls
+    if not ins.updated: #damn
+AttributeError: 'Instruction' object has no attribute 'updated'
+Randomizing "./example/putty.exe"...
+Error processing ./example/putty.exe: 'Instruction' object has no attribute 'updated'
+Error processing ./example/putty.exe: 'Instruction' object has no attribute 'updated'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 370, in analyze_functions
+    func.update_calls()
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 279, in update_calls
+    if not ins.updated: #damn
+AttributeError: 'Instruction' object has no attribute 'updated'
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: name '_use_filter' is not defined
+Error processing ./example/caffeine.exe: name '_use_filter' is not defined
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 137, in analyze_functions
+    func.analyze_registers(functions)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 64, in analyze_registers
+    use_f = _use_filter()
+NameError: name '_use_filter' is not defined
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Instruction' object has no attribute 'can_change'
+Error processing ./example/caffeine.exe: 'Instruction' object has no attribute 'can_change'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 165, in analyze_functions
+    func.update_calls()
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 116, in update_calls
+    ins.can_change.update(ins.USE - ins.implicit)
+AttributeError: 'Instruction' object has no attribute 'can_change'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'eip'
+Error processing ./example/caffeine.exe: 'eip'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 121, in randomize
+    live_regs = swap.get_reg_live_subsets(f.instrs, f.code, f.igraph)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 268, in get_reg_live_subsets
+    live_regs[live_f.cur_reg].add_subset(order)
+KeyError: 'eip'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: name 'capstone' is not defined
+Error processing ./example/caffeine.exe: name 'capstone' is not defined
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 120, in randomize
+    swap.liveness_analysis(f.code)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 193, in liveness_analysis
+    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+NameError: name 'capstone' is not defined
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: Details are unavailable (CS_ERR_DETAIL)
+Error processing ./example/caffeine.exe: Details are unavailable (CS_ERR_DETAIL)
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 120, in randomize
+    swap.liveness_analysis(f.code)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 198, in liveness_analysis
+    ins.USE = set(capstone_insn.regs_read)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/site-packages/capstone/__init__.py", line 691, in regs_read
+    raise CsError(CS_ERR_DETAIL)
+capstone.CsError: Details are unavailable (CS_ERR_DETAIL)
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: name 'causes_reloc_diff' is not defined
+Error processing ./example/caffeine.exe: name 'causes_reloc_diff' is not defined
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 138, in randomize
+    diffs, c_b = reorder.do_random_reordering(f, pe_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/reorder.py", line 106, in do_random_reordering
+    if rins.raddr != rins.addr and causes_reloc_diff([rins], pe_file, relocations):
+NameError: name 'causes_reloc_diff' is not defined
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 25
+Error processing ./example/caffeine.exe: 25
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 121, in randomize
+    live_regs = swap.get_reg_live_subsets(f.instrs, f.code, f.igraph)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 251, in get_reg_live_subsets
+    live_regs[live_f.cur_reg].add_subset(order)
+KeyError: 25
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 138, in randomize
+    diffs, c_b = reorder.do_random_reordering(f, pe_file)
+ValueError: too many values to unpack (expected 2)
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: ord() expected string of length 1, but int found
+Error processing ./example/caffeine.exe: ord() expected string of length 1, but int found
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 144, in randomize
+    diffs, c_b, c_i = disp.displace_block(f, disp_state)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/disp.py", line 458, in displace_block
+    new_bytes = _get_eip_relative_addr(ins, ins.disp_addr)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/disp.py", line 230, in _get_eip_relative_addr
+    if ord(ins.bytes[0]) in EIP_RELATIVE_1B:
+TypeError: ord() expected string of length 1, but int found
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 138, in randomize
+    diffs, c_b = reorder.do_random_reordering(f, pe_file)
+ValueError: too many values to unpack (expected 2)
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: ord() expected string of length 1, but int found
+Error processing ./example/caffeine.exe: ord() expected string of length 1, but int found
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 144, in randomize
+    diffs, c_b, c_i = disp.displace_block(f, disp_state)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/disp.py", line 458, in displace_block
+    new_bytes = _get_eip_relative_addr(ins, ins.disp_addr)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/disp.py", line 230, in _get_eip_relative_addr
+    if ord(ins.bytes[0]) in EIP_RELATIVE_1B:
+TypeError: ord() expected string of length 1, but int found
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: not enough values to unpack (expected 2, got 0)
+Error processing ./example/caffeine.exe: not enough values to unpack (expected 2, got 0)
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 138, in randomize
+    diffs, c_b = reorder.do_random_reordering(f, pe_file)
+ValueError: not enough values to unpack (expected 2, got 0)
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 138, in randomize
+    diffs, c_b = reorder.do_random_reordering(f, pe_file)
+ValueError: too many values to unpack (expected 2)
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 138, in randomize
+    diffs, c_b = reorder.do_random_reordering(f, pe_file)
+ValueError: too many values to unpack (expected 2)
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Error processing ./example/caffeine.exe: too many values to unpack (expected 2)
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 138, in randomize
+    diffs, c_b = reorder.do_random_reordering(f, pe_file)
+ValueError: too many values to unpack (expected 2)
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: not enough values to unpack (expected 2, got 0)
+Error processing ./example/caffeine.exe: not enough values to unpack (expected 2, got 0)
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 138, in randomize
+    diffs, c_b = reorder.do_random_reordering(f, pe_file)
+ValueError: not enough values to unpack (expected 2, got 0)
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'int' object is not iterable
+Error processing ./example/caffeine.exe: 'int' object is not iterable
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 140, in randomize
+    changed_bytes.update(c_b)
+TypeError: 'int' object is not iterable
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'int' object is not iterable
+Error processing ./example/caffeine.exe: 'int' object is not iterable
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 140, in randomize
+    changed_bytes.update(c_b)
+TypeError: 'int' object is not iterable
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'int' object is not iterable
+Error processing ./example/caffeine.exe: 'int' object is not iterable
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 140, in randomize
+    changed_bytes.update(c_b)
+TypeError: 'int' object is not iterable
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: can't concat str to bytes
+Error processing ./example/caffeine.exe: can't concat str to bytes
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 172, in randomize
+    adj_pe.update_displacement(disp_state)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/peLib.py", line 377, in update_displacement
+    moving_code = disp_state.get_dbin()
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/disp.py", line 362, in get_dbin
+    dbin += jmp_bin
+TypeError: can't concat str to bytes
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/iexplore_32.exe"...
+Error processing ./example/iexplore_32.exe: 'Function' object has no attribute 'parse_ftype'
+Error processing ./example/iexplore_32.exe: 'Function' object has no attribute 'parse_ftype'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 177, in analyze_functions
+    func.parse_ftype(func.ftype)
+AttributeError: 'Function' object has no attribute 'parse_ftype'
+Randomizing "./example/hello.exe"...
+Error processing ./example/hello.exe: 'Function' object has no attribute 'parse_ftype'
+Error processing ./example/hello.exe: 'Function' object has no attribute 'parse_ftype'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 177, in analyze_functions
+    func.parse_ftype(func.ftype)
+AttributeError: 'Function' object has no attribute 'parse_ftype'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 177, in analyze_functions
+    func.parse_ftype(func.ftype)
+AttributeError: 'Function' object has no attribute 'parse_ftype'
+Randomizing "./example/putty.exe"...
+Error processing ./example/putty.exe: 'Function' object has no attribute 'parse_ftype'
+Error processing ./example/putty.exe: 'Function' object has no attribute 'parse_ftype'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 177, in analyze_functions
+    func.parse_ftype(func.ftype)
+AttributeError: 'Function' object has no attribute 'parse_ftype'
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 184, in analyze_functions
+    func.parse_ftype(func.ftype)
+AttributeError: 'Function' object has no attribute 'parse_ftype'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 231, in analyze_functions
+    func.parse_ftype(func.ftype)
+AttributeError: 'Function' object has no attribute 'parse_ftype'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 231, in analyze_functions
+    func.parse_ftype(func.ftype)
+AttributeError: 'Function' object has no attribute 'parse_ftype'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'update_returns'
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'update_returns'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 275, in analyze_functions
+    func.update_returns(set_default=True)
+AttributeError: 'Function' object has no attribute 'update_returns'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'parse_ftype'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 331, in analyze_functions
+    func.parse_ftype(func.ftype)
+AttributeError: 'Function' object has no attribute 'parse_ftype'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'update_callers_info'
+Error processing ./example/caffeine.exe: 'Function' object has no attribute 'update_callers_info'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 352, in analyze_functions
+    func.update_callers_info(functions)
+AttributeError: 'Function' object has no attribute 'update_callers_info'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Instruction' object has no attribute 'op1'
+Error processing ./example/caffeine.exe: 'Instruction' object has no attribute 'op1'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 376, in analyze_functions
+    func.analyze_registers(functions)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 184, in analyze_registers
+    elif (ins.mnem == "push" and ins.op1.type == insn.Operand.REGISTER and len(ins.USE & use_f.use_regs) > 1):
+AttributeError: 'Instruction' object has no attribute 'op1'
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'Instruction' object has no attribute 'op1'
+Error processing ./example/caffeine.exe: 'Instruction' object has no attribute 'op1'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 79, in randomize
+    func.analyze_functions(functions, levels)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 378, in analyze_functions
+    func.analyze_registers(functions)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/func.py", line 186, in analyze_registers
+    elif (ins.mnem == "push" and ins.op1.type == insn.Operand.REGISTER and len(ins.USE & use_f.use_regs) > 1):
+AttributeError: 'Instruction' object has no attribute 'op1'
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/iexplore_32.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/putty.exe"...
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/caffeine_patched-w-compositions.exe"...
+Error processing ./example/caffeine_patched-w-compositions.exe: [Errno 2] No such file or directory: './example/caffeine_patched-w-compositions.exe.dmp.bz2'
+Error processing ./example/caffeine_patched-w-compositions.exe: [Errno 2] No such file or directory: './example/caffeine_patched-w-compositions.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/caffeine_patched-w-compositions.exe.dmp.bz2'
+Randomizing "./example/hello_patched-w-compositions.exe"...
+Error processing ./example/hello_patched-w-compositions.exe: [Errno 2] No such file or directory: './example/hello_patched-w-compositions.exe.dmp.bz2'
+Error processing ./example/hello_patched-w-compositions.exe: [Errno 2] No such file or directory: './example/hello_patched-w-compositions.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/hello_patched-w-compositions.exe.dmp.bz2'
+Randomizing "./example/iexplore_32.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/putty.exe"...
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/caffeine"...
+Error processing ./example/caffeine: [Errno 2] No such file or directory: './example/caffeine'
+Error processing ./example/caffeine: [Errno 2] No such file or directory: './example/caffeine'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 68, in randomize
+    pe_file, epilog = peLib.read_pe(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/peLib.py", line 152, in read_pe
+    pe = pefile.PE(pe_path)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/site-packages/pefile.py", line 2941, in __init__
+    self.__parse__(name, data, fast_load)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/site-packages/pefile.py", line 3021, in __parse__
+    stat = os.stat(fname)
+FileNotFoundError: [Errno 2] No such file or directory: './example/caffeine'
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'int' object has no attribute 'hex'
+Error processing ./example/caffeine.exe: 'int' object has no attribute 'hex'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 149, in randomize
+    patch(pe_file, disp_state, diffs)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/randtoolkit.py", line 97, in patch
+    print(f"Error in patching {hex(ea)}: {curr.hex()} != {orig.hex()}")
+AttributeError: 'int' object has no attribute 'hex'
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 30
+Error processing ./example/caffeine.exe: 30
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 121, in randomize
+    live_regs = swap.get_reg_live_subsets(f.instrs, f.code, f.igraph)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 253, in get_reg_live_subsets
+    live_regs[reg].add_subset([ins])
+KeyError: 30
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: name 'md' is not defined
+Error processing ./example/caffeine.exe: name 'md' is not defined
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 121, in randomize
+    live_regs = swap.get_reg_live_subsets(f.instrs, f.code, f.igraph)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 259, in get_reg_live_subsets
+    reg = md.reg_name(reg)
+NameError: name 'md' is not defined
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Error processing ./example/caffeine.exe: 'al'
+Error processing ./example/caffeine.exe: 'al'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 123, in randomize
+    diffs, c_b, c_i = swap.do_multiple_swaps(f, swaps, p=0.5)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 517, in do_multiple_swaps
+    swap_group.sort(key=lambda swap: swap_to_key(swap), reverse=True)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 517, in <lambda>
+    swap_group.sort(key=lambda swap: swap_to_key(swap), reverse=True)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/swap.py", line 469, in swap_to_key
+    key += max([reg_to_idx[swap.reg1.name], reg_to_idx[swap.reg2.name]])*10
+KeyError: 'al'
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/iexplore_32.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/putty.exe"...
+Randomizing "./example/iexplore_32.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/putty.exe"...
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/iexplore_32.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/putty.exe"...
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/iexplore_32.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/putty.exe"...
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/iexplore_32.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/putty.exe"...
+Randomizing "./example/calc.exe"...
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Error processing ./example/calc.exe: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Traceback (most recent call last):
+  File "binary_transform.py", line 236, in <module>
+    randomize(bin_path, n_randomize=args.iters)
+  File "binary_transform.py", line 77, in randomize
+    functions = inp.get_functions(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 41, in get_functions
+    return load_data(input_file)
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/inp_dump.py", line 49, in load_data
+    dump_in = util.open_dump(input_file, "rb")
+  File "/home/younghoon.ban/reversing_vt/Clamav_analysis/working_dir/ReversingVT_BJ/ReversingVT_BJ/modifier/makeover/./enhanced-binary-randomization/orp/util.py", line 21, in open_dump
+    return BZ2File(filename + DUMP_EXT + ZIP_EXT, mode)
+  File "/home/younghoon.ban/anaconda3/envs/tool/lib/python3.8/bz2.py", line 96, in __init__
+    self._fp = _builtin_open(filename, mode)
+FileNotFoundError: [Errno 2] No such file or directory: './example/calc.exe.dmp.bz2'
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/hello.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
+Randomizing "./example/caffeine.exe"...
