@@ -442,7 +442,7 @@ def change_resource_case(file_path, output_path):
         print(f"Error in processing PE file: {str(e)}")
 
     # 변경된 파일 저장
-    output_file = os.path.join(output_path, os.path.basename(file_path)).replace('.exe', '_resource_change.exe')
+    output_file = os.path.join(output_path, os.path.basename(file_path)).replace('.exe', '|resource_change.exe')
     with open(output_file, "wb") as f:
         f.write(modified_data)
 
@@ -451,7 +451,7 @@ def change_resource_case(file_path, output_path):
 def resource_change(args):
     sample, root, save_dir = args
     file_path = os.path.join(root, sample)
-    output_filename = sample.replace('.exe', '_resource_change.exe')
+    output_filename = sample.replace('.exe', '|resource_change.exe')
 #     output_filename_1 = sample.replace('.exe', '_adding_'+str(number_of_nop)+'.exe')
 #     output_filename_2 = sample.replace('.exe', '_nop_fin_'+str(number_of_nop)+'.exe')
 #     output_filepath_1 = os.path.join(save_dir, output_filename_1)

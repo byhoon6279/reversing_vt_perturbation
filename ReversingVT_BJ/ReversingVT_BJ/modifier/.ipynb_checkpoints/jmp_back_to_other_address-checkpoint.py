@@ -3,37 +3,37 @@ from add_section import *
 from iced_x86 import *
 from overlay_append import *
 from pwn import *
+import lief
 
 def btoi(data: bytes) -> int:
     return int.from_bytes(data, byteorder="little")
 
-
 def itob4(data: int) -> bytes:
     return data.to_bytes(4, byteorder="little")
-
 
 def itob2(data: int) -> bytes:
     return data.to_bytes(2, byteorder="little")
 
 def get_overlay_address(data: bytearray) -> int:
-    # Get PE header offset
-    pe_header_offset = btoi(data[0x3C:0x40])  # e_lfanew
+    pe_header_offset = btoi(data[0x3C:0x40])
     if data[pe_header_offset : pe_header_offset + 4] != b"PE\x00\x00":
         raise ValueError("Invalid PE header offset")
 
     section_header_start_offset = pe_header_offset + 0xf8
-    total_number_of_section = btoi(data[pe_header_offset + 0x6 : pe_header_offset + 0x8])
-    
+    total_number_of_sections = btoi(data[pe_header_offset + 0x6 : pe_header_offset + 0x8])
+
+    print(f"⚠️ get_overlay_address [DEBUG] PE 헤더에서 읽은 섹션 개수: {total_number_of_sections}")
+
     highest_PointerToRawData = 0 
     highest_SizeOfRawData = 0
-    for i in range(total_number_of_section):
-        cur_section_header = section_header_start_offset + i * section_header_size
-        section_name = bytes(data[cur_section_header : cur_section_header + 0x8])
 
+    for i in range(total_number_of_sections):
+        cur_section_header = section_header_start_offset + i * 0x28  # 섹션 헤더 크기
         cur_SizeOfRawData = btoi(data[cur_section_header + 0x10 : cur_section_header + 0x14])
         cur_PointerToRawData = btoi(data[cur_section_header + 0x14 : cur_section_header + 0x18])
 
         if cur_SizeOfRawData + cur_PointerToRawData > len(data):
+            print(f"⚠️ get_overlay_address [WARNING] 섹션 {i}의 Raw Data가 파일 크기보다 큼 (무시됨)")
             continue
         
         if cur_SizeOfRawData + cur_PointerToRawData > highest_PointerToRawData + highest_SizeOfRawData:
@@ -41,36 +41,22 @@ def get_overlay_address(data: bytearray) -> int:
             highest_SizeOfRawData = cur_SizeOfRawData
     
     if len(data) > highest_PointerToRawData + highest_SizeOfRawData:
-        return highest_PointerToRawData + highest_SizeOfRawData
+        overlay_address = highest_PointerToRawData + highest_SizeOfRawData
+        print(f"⚠️ get_overlay_address [DEBUG] 계산된 Overlay 주소: {hex(overlay_address)}")
+        return overlay_address
 
     return None
 
-
-def count_valid_bytecode(bytecode: bytes, min: int = 0x20, max: int = 0x30) -> int:
-    md = Cs(CS_ARCH_X86, CS_MODE_32)
-
-    result = 0    
-    for insn in md.disasm(bytecode, 0x1000):
-        result += insn.size
-        if result >= min and result < max:
-            return result
-
-    raise ValueError("Failed to count valid Bytecodes")
-    return 0
-
 def search_section_header_by_name(data: bytes, section_name: bytes) -> int:
-    pe_header_offset = btoi(data[0x3C:0x40])  # e_lfanew
+    pe_header_offset = btoi(data[0x3C:0x40])
     if data[pe_header_offset : pe_header_offset + 4] != b"PE\x00\x00":
         raise ValueError("Invalid PE header offset")
 
     section_header_start_offset = pe_header_offset + 0xf8
-    total_number_of_section = btoi(data[pe_header_offset + 0x6 : pe_header_offset + 0x8])
+    total_number_of_sections = btoi(data[pe_header_offset + 0x6 : pe_header_offset + 0x8])
 
     section_header_size = 0x28
-    executable_section_list = []
-
-    target = 0
-    for i in range(total_number_of_section):
+    for i in range(total_number_of_sections):
         cur_section_header = section_header_start_offset + i * section_header_size
         cur_section_name = bytes(data[cur_section_header : cur_section_header + 0x8])
 
@@ -79,201 +65,143 @@ def search_section_header_by_name(data: bytes, section_name: bytes) -> int:
     
     return 0
 
-
 def make_assemble_jmp(jmp_target):
-    '''
-    0:  68 ef be ad de          push   0xdeadbeef
-    5:  c3                      ret
-    '''
-
-    asm_bytes = b"\x68"
-    asm_bytes += itob4(jmp_target)
-    asm_bytes += b"\xc3"
+    asm_bytes = b"\x68" + itob4(jmp_target) + b"\xc3"
     return asm_bytes
-    
+
 def make_assemble_call(call_target):
-    '''
-    0:  57                      push   edi
-    1:  68 ef be ad de          push   0xdeadbeef
-    6:  5f                      pop    edi
-    7:  ff d7                   call   edi
-    9:  5f                      pop    edi
-    '''
-
-    asm_bytes = b"\x57" # push edi
-    asm_bytes += b"\x68" # push
-    asm_bytes += itob4(call_target)
-    asm_bytes += b"\x5f" # pop edi 
-    asm_bytes += b'\xff\xd7' # call edi
-    asm_bytes += b'\x5f' # pop edi
+    asm_bytes = b"\x57" + b"\x68" + itob4(call_target) + b"\x5f" + b'\xff\xd7' + b'\x5f'
     return asm_bytes
 
+def manually_add_section(data: bytearray, section_name: str):
+    pe_header_offset = btoi(data[0x3C:0x40])
+    section_table_offset = pe_header_offset + 0xf8
+    num_sections = btoi(data[pe_header_offset + 6: pe_header_offset + 8])
 
-# def make_assemble_recovery(hook_info, back_address):
-#     '''
-#     push edi
-#     push esi 
-#     mov edi, [hook_info]
-#     mov esi, [hook_info + 4]
+    # 🔥 새 섹션 추가할 위치 계산
+    new_section_offset = section_table_offset + num_sections * 0x28
+    if new_section_offset + 0x28 > len(data):
+        raise ValueError("[-] 새로운 섹션을 추가할 공간이 부족함.")
 
-#     mov [back_address], edi
-#     mov [back_address+4], esi
+    # ✅ 새 섹션 헤더 작성
+    data[new_section_offset : new_section_offset + 8] = section_name.encode().ljust(8, b"\x00")  # 섹션 이름
 
-#     pop esi
-#     pop edi
-#     jmp back_address
-#     '''
+    # 🔥 섹션 기본 설정 (기본 크기 0x1000)
+    data[new_section_offset + 0x8 : new_section_offset + 0x10] = itob4(0x1000)  # VirtualSize
+    data[new_section_offset + 0x10 : new_section_offset + 0x14] = itob4(0x1000)  # SizeOfRawData
+    data[new_section_offset + 0x14 : new_section_offset + 0x18] = itob4(len(data))  # PointerToRawData (파일 끝에 추가)
+    data[new_section_offset + 0x24 : new_section_offset + 0x28] = itob4(0x60000020)  # Characteristics (RWX 권한)
 
-#     encoder = BlockEncoder(32)
-#     ins = []
-#     ins.append(Instruction.create_reg(Code.PUSH_R32, Register.EDI))
-#     ins.append(Instruction.create_reg(Code.PUSH_R32, Register.ESI))
-    
-#     # ins.append(Instruction.create_reg_mem(Code.MOV_R32_RM32, Register.EDI, MemoryOperand(Register.EIP, displ=hook_info - 18)))
-#     # ins.append(Instruction.create_reg_mem(Code.MOV_R32_RM32, Register.ESI, MemoryOperand(Register.EIP, displ=hook_info - 14)))
-    
-#     # ins.append(Instruction.create_mem_reg(Code.MOV_RM32_R32, MemoryOperand(Register.NONE, displ=back_address), Register.EDI))
-#     # ins.append(Instruction.create_mem_reg(Code.MOV_RM32_R32, MemoryOperand(Register.NONE, displ=back_address + 4), Register.ESI))
+    # ✅ PE 헤더의 섹션 개수 증가
+    data[pe_header_offset + 6 : pe_header_offset + 8] = itob2(num_sections + 1)
+    print(f"✅ [DEBUG] .ccc 섹션 추가 완료! 새 섹션 개수: {num_sections + 1}")
 
-#     ins.append(Instruction.create_reg(Code.POP_R32, Register.ESI))
-#     ins.append(Instruction.create_reg(Code.POP_R32, Register.EDI))
+    return data
 
-#     # # mov [back_address], edi
-#     # block += Instruction.create_mov_rm32_imm32(MemoryOperand(Register.RIP, back_address, 4), Register.RDI)
+def fix_reloc_section(data: bytearray):
+    pe_header_offset = btoi(data[0x3C:0x40])
+    num_sections = btoi(data[pe_header_offset + 6: pe_header_offset + 8])
+    section_table_offset = pe_header_offset + 0xf8
 
-#     encoder.add_many(ins)
-#     encoded_bytes = encoder.encode(0)
-#     return encoded_bytes
+    for i in range(num_sections):
+        section_offset = section_table_offset + (i * 0x28)
+        section_name = data[section_offset : section_offset + 8].rstrip(b"\x00").decode(errors="ignore")
+
+        if section_name == ".reloc":
+            size_of_raw_data = btoi(data[section_offset + 0x10 : section_offset + 0x14])
+            pointer_to_raw_data = btoi(data[section_offset + 0x14 : section_offset + 0x18])
+
+            # 🔥 .reloc 섹션 크기가 비정상적으로 크면 강제 조정
+            if size_of_raw_data > 0x10000:  # 64KB 이상이면 비정상
+                print(f"⚠️ .reloc 섹션 크기 비정상 ({size_of_raw_data:#x}) → 0x1000로 조정")
+                data[section_offset + 0x10 : section_offset + 0x14] = itob4(0x1000)
+
+    return data
+
+def fix_pe_data_directory(data: bytearray):
+    pe_header_offset = btoi(data[0x3C:0x40])
+    optional_header_offset = pe_header_offset + 0x18
+
+    # Import Table, Reloc Table 위치 확인
+    import_rva = btoi(data[optional_header_offset + 0x80 : optional_header_offset + 0x84])
+    reloc_rva = btoi(data[optional_header_offset + 0xa0 : optional_header_offset + 0xa4])
+
+    if import_rva == 0 or reloc_rva == 0:
+        print("⚠️ Import Table 또는 Reloc Table의 RVA가 0으로 설정됨 → 수정 필요")
+
+        # 예제: Import Table을 .data 섹션 위치로 이동
+        data[optional_header_offset + 0x80 : optional_header_offset + 0x84] = itob4(0x400000 + 0x2000)
+        data[optional_header_offset + 0xa0 : optional_header_offset + 0xa4] = itob4(0x400000 + 0x3000)
+
+    return data
+
+
 
 
 def jmp_back_to_other_address(data: bytes, hook_target_VA: int, overlay_address: int) -> bytes:
-    """
-    Overlay에 추가한 address에 jump하고 기존 code로 다시 jump
-    ==> Hooker
-
-    1. memcpy "ptr [hook_target_VA]" to .ccc[i]. (size : 0x10)
-    2. Overwrite "jmp .ccc[i]" to "ptr [hook_target_VA]"
-    3. jmp .ccc[i]
-    - In .ccc[i]
-        1. Call overlay_address
-        2. receovery original_function code [ memcpy(back_address, backup_code, 0x10) ]
-        3. jmp back_address
-    
-    
-    Args:
-        data: Raw PE Binary bytes
-        hook_target_VA: Target function address to hook
-        overlay_address: overlay address containing the address of the code to be executed
-
-    Returns:
-        PE binary bytes with jmp back to other address applied
-    """
-
-    
     data = bytearray(data)
 
-    # Get PE header offset
-    pe_header_offset = btoi(data[0x3C:0x40])  # e_lfanew
+    pe_header_offset = btoi(data[0x3C:0x40])
+    
     if data[pe_header_offset : pe_header_offset + 4] != b"PE\x00\x00":
         raise ValueError("Invalid PE header offset")
 
-    # Disable IMAGE_DLL_CHARACTERISTICS_DYNAMIC_BASE
-    data[0xd6 : 0xd8] = itob2(0x8100)
+    # 🔥 PE 섹션 개수 확인
+    section_header_start_offset = pe_header_offset + 0xf8
+    total_number_of_sections = btoi(data[pe_header_offset + 0x6 : pe_header_offset + 0x8])
+    lief_parsed = lief.parse(bytes(data))
+    
+    if lief_parsed is None:
+        raise ValueError("[-] lief가 PE 파일을 정상적으로 읽지 못함 (파일이 손상되었거나 압축됨)")
 
-    # Find default dummy section or Create Dummy Header
+    lief_section_count = len(lief_parsed.sections)
+
+    print(f"⚠️ jmp_back_to_other_address [DEBUG] PE 헤더에서 읽은 섹션 개수: {total_number_of_sections}")
+    print(f"⚠️ jmp_back_to_other_address [DEBUG] lief에서 읽은 섹션 개수: {lief_section_count}")
+
+    # ✅ 값 조정
+    if abs(total_number_of_sections - lief_section_count) > 2:
+        print("⚠️ jmp_back_to_other_address [WARNING] lief와 PE 헤더 섹션 개수 차이가 큼 → PE 헤더 값을 사용")
+        total_number_of_sections = lief_section_count
+
+    print(f"⚠️ jmp_back_to_other_address [DEBUG] 최종 PE 섹션 개수: {total_number_of_sections}")
+
+    # 🔥 기존 .ccc 섹션 확인
     hook_section_header = search_section_header_by_name(data, b".ccc")
+
     if hook_section_header == 0:
-        data = add_section(data, ".ccc", b"\x00" * 0x1000, PERM.READ | PERM.EXEC)
+        print("[+] .ccc 섹션 없음 → 새로 추가")
+        if total_number_of_sections >= 50:
+            raise ValueError("PE 섹션 개수가 너무 많아 .ccc 섹션 추가 중단")
 
-        res = search_section_header_by_name(data, b".ccc")
+        # 🔥 우선 `lief.add_section()` 시도
         try:
-            if res == 0:
-                raise ValueError("Failed to Add Section")
-            else:
-                hook_section_header = res
-        except ValueError as e:
-            return data
+            data = add_section(data, ".ccc", b"\x00" * 0x1000, PERM.READ | PERM.EXEC)
+            lief_parsed_after = lief.parse(bytes(data))
+            if lief_parsed_after:
+                print(f"🔥 jmp_back_to_other_address [DEBUG] 섹션 추가 후 PE 섹션 목록: {[sec.name for sec in lief_parsed_after.sections]}")
+        except Exception as e:
+            print(f"⚠️ lief.add_section() 실패: {str(e)}")
 
-    else:
-        print("[+] Found Dummy section ['.ccc']")
+        # 🔥 `lief.add_section()`이 실패했거나 `.ccc` 섹션이 안 보이면 `manually_add_section()` 실행
+        hook_section_header = search_section_header_by_name(data, b".ccc")
+        if hook_section_header == 0:
+            print("[+] lief로 .ccc 섹션 추가 실패 → 직접 PE 헤더 수정")
+            data = manually_add_section(data, ".ccc")
+            data = fix_reloc_section(data)
+            data = fix_pe_data_directory(data)
 
-    RVA__hook_section = btoi(data[hook_section_header + 0xc : hook_section_header + 0x10])
-
-    # Prepare to get raw data pointer of [hook_target_VA]
-    PE_image_base = btoi(data[pe_header_offset + 0x34: pe_header_offset + 0x38])
-    try:
-        text_section_header = search_section_header_by_name(data, b'.text')
-        if text_section_header == 0:
-            raise ValueError("Failed to Find .text section")
-    except ValueError as e:
-        return data
-    
-    RVA__text_section = btoi(data[text_section_header + 0xc : text_section_header + 0x10])
-    PointerToRawData_text_section = btoi(data[text_section_header + 0x14 : text_section_header + 0x18])
-
-    # Get Target Address in Overlay
-    hook_code_VA = btoi(data[overlay_address : overlay_address + 4])
-    hook_target_RawPointer = hook_target_VA - (PE_image_base + RVA__text_section) + PointerToRawData_text_section
-
-    print(f"[+] Hook {hook_target_VA:#x} to {hook_code_VA:#x}")
-
-    # Prepare
-    hook_info_size = 0x28
-    backup_code_size = count_valid_bytecode(data[PointerToRawData_text_section : PointerToRawData_text_section + 0x100], 0x6, 0x10)
-    hook_table_RawPointer = btoi(data[hook_section_header + 0x14 : hook_section_header + 0x18])
-    total_hook_info_cnt = btoi(data[hook_table_RawPointer : hook_table_RawPointer + 0x4])
-    data[hook_table_RawPointer : hook_table_RawPointer + 0x4] = itob4(total_hook_info_cnt + 1)
-    current_hook_info_VA = PE_image_base + RVA__hook_section + 0x8 + total_hook_info_cnt * hook_info_size
-    print(f"[+] hook_info count already exists : {total_hook_info_cnt:#x}")
-    print(f"[+] backup_code_size : {backup_code_size:#x}")
-
-    # Copy backup data to hook_info
-    backup_data = data[hook_target_RawPointer : hook_target_RawPointer + backup_code_size]
-    current_hook_info_RawPointer = hook_table_RawPointer + 0x8 + total_hook_info_cnt * hook_info_size
-    data[current_hook_info_RawPointer + 0x10 : current_hook_info_RawPointer + 0x20] = backup_data.rjust(0x10, b'\x90')
-
-    # Overwrite 'call hook_code_VA' to hook_info.inst
-    # b'\xe8' + itob4(hook_code_VA - 5)
-    call_hook_code_asm = make_assemble_call(hook_code_VA)
-    data[current_hook_info_RawPointer : current_hook_info_RawPointer + 0x10] = call_hook_code_asm.rjust(0x10, b'\x90')
-
-    # Ovewrite 'jmp hook_info[i].inst' to ptr [hook_target_VA]
-    hooking_asm = make_assemble_jmp(current_hook_info_VA) 
-    data[hook_target_RawPointer : hook_target_RawPointer + backup_code_size] = hooking_asm.rjust(backup_code_size, b'\x90')
-
-    # Recovery Assembler
-    recovery_asm = make_assemble_jmp(hook_target_VA + backup_code_size)
-    data[current_hook_info_RawPointer + 0x20 : current_hook_info_RawPointer + 0x28] = recovery_asm.rjust(0x8, b'\x90')
+        # ✅ 다시 `.ccc` 위치 확인
+        hook_section_header = search_section_header_by_name(data, b".ccc")
+        if hook_section_header == 0:
+            raise ValueError("[-] .ccc 섹션 추가 실패")
         
-    print(f"[+] Recovery asm injected size : {len(recovery_asm):#x}")
+        print(f"[DEBUG] .ccc 추가 후 PE 섹션 개수: {total_number_of_sections + 1}")
+    else:
+        print("[+] 기존 .ccc 섹션 찾음 → 추가 안 함")
 
-    ''' 
-    jmp val
-    nop
-    . . .
-    nop
-
-    val = PE_image_base + RVA__hook_section + 0x4(dummy_section.total_hook_info_cnt)
-    + total_hook_info_cnt * hook_info_size + 0x4(hook_info.backup_code)
-
-    '''
-
-
-    '''
-    hook_info {
-        byte[0x10] inst [call target_function]
-        byte[0x10] backup_code
-        byte[0x8] jmp hook_address
-    }
-
-    hook_table  {
-        byte[0x4] total_hook_info_cnt
-        byte[0x4] dummy
-        hook_info[] hook_info
-    }
-    '''
-    
     return data
+
 
 if __name__ == '__main__':
     data = bytearray(open("test/putty.exe", "rb").read())

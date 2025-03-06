@@ -651,23 +651,23 @@ def modify_section(file_path, new_text, save_dir, modified_section_names):
     if idx == len(pe.sections) - 1: #overlay
         new_binary += tmp_binary[section.PointerToRawData+section.SizeOfRawData:] 
             
-    with open(file_path.replace(file_format, "_instruction_change"+file_format), "wb") as f:
+    with open(file_path.replace(file_format, "|instruction_change"+file_format), "wb") as f:
         f.write(new_binary)
         
     #print("last : ",len(new_binary))    
     os.remove(tmp_file)
     #print("save : ",save_dir)
-    file_name = file_path.split('/')[-1].replace(file_format, "_instruction_change"+file_format)
-    print("Done!! : ",file_path.replace(file_format, "_instruction_change"+file_format), "| ",save_dir+file_name,"\n")
+    file_name = file_path.split('/')[-1].replace(file_format, "|instruction_change"+file_format)
+    print("Done!! : ",file_path.replace(file_format, "|instruction_change"+file_format), "| ",save_dir+file_name,"\n")
     #shutil.move(save_dir+file_name,file_path) 
-    os.rename(file_path.replace(file_format, "_instruction_change"+file_format), save_dir+file_name)
+    os.rename(file_path.replace(file_format, "|instruction_change"+file_format), save_dir+file_name)
     #print(file_path.replace(file_format, "_changing"+file_format))
-    os.system('rm -rf '+file_path.replace(file_format, "_instruction_change"+file_format))
+    #os.system('rm -rf '+file_path.replace(file_format, "_instruction_change"+file_format))
     
 def instruction_change(args):
     sample, root, save_dir = args
     input_filepath = os.path.join(root, sample)
-    output_filename = sample.replace('.exe', '_instruction_change.exe')
+    output_filename = sample.replace('.exe', '|instruction_change.exe')
     output_filepath = os.path.join(save_dir, output_filename)
 
     #이미 파일이 존재하는 경우 건너뜀
@@ -718,6 +718,12 @@ def main():
 
     process_sample((sample, root, save_dir))
 
+
+#     sample = "881b7687bfcfe3db572455e3fcb228da564c29a7f5359f54eceffce43a351456_coff_header_optional_header.exe"
+#     root = "/home/younghoon.ban/Dike_lable/RQ4/sample/7/winwebsec/"
+#     save_dir = "/home/younghoon.ban/Dike_lable/RQ4/sample/7/winwebsec"
+
+#     instruction_change((sample, root, save_dir))
 
 # if __name__ == '__main__':
 #     main()

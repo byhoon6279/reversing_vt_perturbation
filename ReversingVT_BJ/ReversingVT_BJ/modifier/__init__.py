@@ -29,7 +29,7 @@ from coff_header import *
 from data_directory import *
 from instruction_change import *
 from resource_change import *
-from increase_section import *
+from section_increase import *
 from semantic_nop import *
 from makeover import *
 
@@ -51,7 +51,7 @@ class Modifier:
         # fparsed = lief.parse(fbytes)
         builder = lief.PE.Builder(fparsed)
         builder.build()
-        new_fname = "{}/{}_{}.exe".format(self.opath, self.sample[:-4], pertname)
+        new_fname = "{}/{}|{}.exe".format(self.opath, self.sample[:-4], pertname)
         builder.write(new_fname)
 
         pe2 = pefile.PE(new_fname)
@@ -64,32 +64,32 @@ class Modifier:
     def overlay_append(self):
         append_data = os.urandom(0x1000)
         new_data = overlay_append_dummy(self.data, append_data)
-        open("{}/{}_overlay_append.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|overlay_append.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def section_rename(self):
         length = random.randrange(1,10)
         section_name ="."+''.join(random.sample([chr(i) for i in range(97,123)], length))
         checksum = os.urandom(0x4) # b"\x01\x02\x03\x04"
         new_data = perturb_pe_header(self.data, section_name, checksum)
-        open("{}/{}_section_rename.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|section_rename.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def fill_slack_space(self):
         new_data = fill_slack(self.data)
-        open("{}/{}_perturb_header.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|perturb_header.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def modify_dos_header(self):
         new_data = modify_dos_header(self.data)
-        open("{}/{}_modify_dos_header.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|modify_dos_header.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
-    def dos_stub(self):
+    def extend_dos_stub(self):
         code = os.urandom(0xA00)
         new_data = extend_dos_stub(self.data, code)
-        open("{}/{}_modify_dos_stub.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|extend_dos_stub.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def content_shifting(self):
         new_data = gap_sections(self.data)
         new_data = extend_and_shift_sections(new_data)
-        open("{}/{}_content_shifting.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|content_shifting.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def inject_import_func(self): 
         # Does not work
@@ -99,7 +99,7 @@ class Modifier:
             {"funcname" : b"GetCurrentThreadId", "nativecode" : b"\x90" * 0x100},
         ]
         new_data = iat_injection(self.data, value)
-        open("{}/{}_inject_import_func.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|inject_import_func.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def section_add(self):
         _data = bytearray(self.data)
@@ -107,28 +107,28 @@ class Modifier:
         section_name ="."+''.join(random.sample([chr(i) for i in range(97,123)], length))
         content = os.urandom(0x100)
         new_data = add_section(_data, section_name, content, PERM.READ | PERM.WRITE | PERM.EXEC)
-        open("{}/{}_section_add.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|section_add.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def section_append(self):
         new_data = section_append_unused(self.data)
         new_data = section_append_gap(self.data)
-        open("{}/{}_section_append.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|section_append.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def packing(self):
-        output_exe_path = "{}/{}_packing.exe".format(self.opath, self.sample[:-4])
+        output_exe_path = "{}/{}|packing.exe".format(self.opath, self.sample[:-4])
         pack_with_upx(self.sample_path, output_exe_path)
 
     
     def code_randomization(self):
         _data = bytearray(self.data)
         new_data = code_randomization(_data)
-        open("{}/{}_code_randomization.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|code_randomization.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def change_entrypoint(self):
         # Does not work
         _data = bytearray(self.data)
         new_data = change_entry_point(_data, 0xdeadbeef)
-        open("{}/{}_change_entrypoint.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|change_entrypoint.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def dropper(self):
         # Does not work
@@ -144,22 +144,39 @@ class Modifier:
         # Does not work
         _data = bytearray(self.data)
         new_data = entry_point_extend(_data, '.tls', 0x1234, 0xdeadbeef)
-        open("{}/{}_extend_entrypoint.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|extend_entrypoint.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def nop_insertion(self):
         _data = bytearray(self.data)
         new_data = nop_insertion(_data, 2)
-        open("{}/{}_nop_insertion.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        open("{}/{}|nop_insertion.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def jmp_overlay_back(self):
         fparsed = lief.parse(self.data)
         _data = bytearray(self.data)
-        overlay_addr = len(self.data)+fparsed.optional_header.baseof_code
-        _data = overlay_append_dummy(_data, itob4(0x40105c))
-        code_base = fparsed.optional_header.imagebase+fparsed.optional_header.baseof_code
-#         new_data = jmp_back_to_other_address(_data, 0x401000, overlay_addr)
+
+        pe_header_offset = int.from_bytes(_data[0x3C:0x40], byteorder="little")
+        num_sections = int.from_bytes(_data[pe_header_offset + 6 : pe_header_offset + 8], byteorder="little")
+
+        print(f"⚠️ [DEBUG] lief가 읽은 섹션 개수: {len(fparsed.sections)}")
+        print(f"⚠️ [DEBUG] PE 헤더에서 직접 읽은 섹션 개수: {num_sections}")
+
+        if len(fparsed.sections) != num_sections:
+            print(f"⚠️ [ERROR] lief와 PE 헤더에서 읽은 섹션 개수가 다름! (lief={len(fparsed.sections)}, PE 헤더={num_sections})")
+
+        # ⚠️ 문제 발생 시 강제 종료
+        if num_sections > 100:
+            raise ValueError(f"⚠️ PE 섹션 개수 비정상: {num_sections}! 파일 손상 위험 (중단)")
+
+        # 기존 코드 유지
+        file_end_offset = len(_data.rstrip(b'\x00'))  
+        baseof_code = fparsed.optional_header.baseof_code
+        overlay_addr = (file_end_offset + 0x10) & ~0xF
+        code_base = fparsed.optional_header.imagebase + baseof_code
+
         new_data = jmp_back_to_other_address(_data, code_base, overlay_addr)
-        open("{}/{}_jmp_overlay_back.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
+        output_path = f"{self.opath}/{self.sample[:-4]}|jmp_overlay_back.exe"
+        open(output_path, "wb").write(new_data)
     
     def section_rename(self):
         fparsed = section_rename(self.data)
@@ -189,9 +206,9 @@ class Modifier:
         args = (self.sample, self.root_sample, self.opath)
         resource_change(args)
 
-    def increase_section(self):
+    def section_increase(self):
         args = (self.sample, self.root_sample, self.opath)
-        increase_section(args)
+        section_increase(args)
         
     def semantic_nop(self):
         args = (self.sample, self.root_sample, self.opath)
