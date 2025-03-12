@@ -51,19 +51,14 @@ pert_abbr = {
     "rich_header": "RH",
     "optional_header": "OH",
     "section_rename": "SRN",
-    
     "section_add": "SAD",
     "section_append": "SAP",
-    
     "content_shifting": "CS",
-    
-    "jmp_overlay_back": "JOB"
-    ,
+    "jmp_overlay_back": "JOB",
     "overlay_append": "OAP",
-    
     "instruction_change": "IC",
     "resource_change": "RC",
-    "section_increase": "SIN",
+    "section_increase": "SIN"
 }
 
 perts = list(pert_abbr.keys())

@@ -58,7 +58,7 @@ pert_abbr = {
     "overlay_append": "OAP",
     "instruction_change": "IC",
     "resource_change": "RC",
-    "section_increase": "SIN",
+    "section_increase": "SIN"
 }
 
 perts = list(pert_abbr.keys())

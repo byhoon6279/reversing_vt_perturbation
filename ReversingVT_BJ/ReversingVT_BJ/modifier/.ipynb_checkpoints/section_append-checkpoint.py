@@ -1,18 +1,20 @@
 import pefile
 import os
 
-def section_append_unused(data:bytes) -> bytes:
+def section_append_unused(data: bytes) -> bytes:
     data = bytearray(data)
     pe = pefile.PE(data=data)
 
-    # find and fill unused space in sections with random bytes
-    for sections in pe.sections:
-        if sections.SizeOfRawData > sections.Misc_VirtualSize:
-            offset = sections.PointerToRawData + sections.Misc_VirtualSize
-            size = sections.SizeOfRawData - sections.Misc_VirtualSize
+    # Find and fill unused space in sections with random bytes
+    for section in pe.sections:
+        if section.SizeOfRawData > section.Misc_VirtualSize:
+            offset = section.PointerToRawData + section.Misc_VirtualSize
+            size = section.SizeOfRawData - section.Misc_VirtualSize
+
             pe.__data__[offset : offset + size] = os.urandom(size)
 
     return data
+
 
 def section_append_gap(data:bytes) -> bytes:
     data = bytearray(data)
@@ -25,7 +27,10 @@ def section_append_gap(data:bytes) -> bytes:
 
         # 🔹 size가 0 이하일 경우 무시
         if size <= 0:
-            print(f"Warning: Skipping section {i} due to invalid size ({size})")
+            section_name = pe.sections[i].Name.decode('utf-8', errors='ignore').strip('\x00')
+
+            # 🔹 오프셋 값 & 크기 출력
+            print(f"Warning: Skipping section [{section_name}] due to invalid size ({size})")
             continue
 
         pe.__data__[offset : offset + size] = os.urandom(size)

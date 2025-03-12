@@ -111,7 +111,7 @@ class Modifier:
 
     def section_append(self):
         new_data = section_append_unused(self.data)
-        new_data = section_append_gap(self.data)
+        new_data = section_append_gap(new_data)
         open("{}/{}|section_append.exe".format(self.opath, self.sample[:-4]), "wb").write(new_data)
 
     def packing(self):

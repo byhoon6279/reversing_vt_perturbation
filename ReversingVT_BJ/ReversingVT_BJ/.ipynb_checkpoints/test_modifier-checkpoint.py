@@ -15,7 +15,7 @@ perts = ["modify_dos_header","extend_dos_stub","coff_header","rich_header","opti
         "section_rename","section_add","section_append","content_shifting",
         "jmp_overlay_back","overlay_append","instruction_change","resource_change","section_increase"]
 
-perts = ["instruction_change"]
+perts = ["section_append"]
 
 #input_dir = '../../semi_measure/Seed_malware/'
 #save_dir =  '../../semi_measure/AE/'
@@ -30,8 +30,8 @@ samples = [f for f in os.listdir(input_dir) if f.endswith(".exe")]
 
 for sample in samples:
     print(sample)
-    if '56796923842c2bdb03bbeac8654ba8688cefa410d2283ff46492325b7150acbe_SIN_COFF_OH_SAP_SAD_RH_RC_MDH_OAP_SRN_CS_EDS.exe' in sample:
-        continue
+    #if 'a2e0f5a900f045ca1f4966637934362db5426818120a99abb5d93111ba2421b7' not in sample:
+        #continue
     if '.ipynb' in sample:
         continue
     full_sample_path = os.path.join(input_dir, sample)  # 전체 파일 경로 생성
