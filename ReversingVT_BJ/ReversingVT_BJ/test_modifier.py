@@ -11,16 +11,16 @@ from modifier import Modifier
 #         "section_rename","section_add","section_append","content_shifting",
 #         "jmp_overlay_back","overlay_append","instruction_change","resource_change","increase_section", "semantic_nop", "makeover"]
 
-perts = ["modify_dos_header","extend_dos_stub","coff_header","rich_header","optional_header",
-        "section_rename","section_add","section_append","content_shifting",
-        "jmp_overlay_back","overlay_append","instruction_change","resource_change","section_increase"]
+# perts = ["modify_dos_header","extend_dos_stub","coff_header","rich_header","optional_header",
+#         "section_rename","section_add","section_append","content_shifting",
+#         "jmp_overlay_back","overlay_append","instruction_change","resource_change","section_increase"]
 
-perts = ["section_append"]
+perts = ["section_increase"]
 
 #input_dir = '../../semi_measure/Seed_malware/'
 #save_dir =  '../../semi_measure/AE/'
 
-input_dir = './'
+input_dir = './input'
 save_dir =  './m_sample_2'
 
 #input_dir = '../../sample/benign/'

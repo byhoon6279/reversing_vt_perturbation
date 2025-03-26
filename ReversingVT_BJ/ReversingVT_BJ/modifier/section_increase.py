@@ -130,6 +130,6 @@ def main():
     save_dir = "./temp/"
     
     increase_size=1
-    nop_count=5
+    nop_count=0
     
     process_sample((sample, root, save_dir))
