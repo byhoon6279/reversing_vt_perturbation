@@ -8,7 +8,7 @@ from multiprocessing import Pool, cpu_count
 perts = [
     "modify_dos_header", "extend_dos_stub", "coff_header", "rich_header", "optional_header",
     "section_rename", "section_add", "section_append", "content_shifting",
-    "jmp_overlay_back", "overlay_append", "instruction_change", "resource_change", "section_increase"
+    "jmp_overlay_back", "overlay_append", "resource_change", "section_increase", "instruction_change"
 ]
 
 # perturbation 실행 함수
@@ -41,7 +41,7 @@ use_multi = args.multi
 num_jobs = args.jobs
 
 sample_paths = []
-target_dir = ['picsys' , 'parite' , 'aenjaris' , 'ardurk' , 'gamarue' , 'fareit' , 'tinba' , 'drolnux' , 'neshta' , 'spigot' , 'bladabindi' , 'xiaoba' , 'simbot' , 'oberal' , 'antavmu' , 'gandcrab' , 'hematite' , 'pioneer' , 'installcore' , 'mepaow' , 'blackmoon' , 'onlinegames' , 'banload' , 'trickbot' , 'fsysna' , 'kovter' , 'softcnapp' , 'ulpm' , 'ipamor' , 'ulise' , 'nitol' , 'fasong' , 'cryptinject' , 'mbrlock' , 'blackshades' , 'glupteba' , 'mailru' , 'benjamin' , 'snojan' , 'winwrapper' , 'linkury' , 'downloadsponsor' , 'diskfill' , 'pistolar' , 'ribaj' , 'xiquitir' , 'resur' , 'lebreat' , 'expiro' , 'msilkrypt']
+target_dir = []
 
 for root, dirs, files in os.walk(input_dir):
     last_dir = os.path.basename(root)
