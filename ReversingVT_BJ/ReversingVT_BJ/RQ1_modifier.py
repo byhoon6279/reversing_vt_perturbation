@@ -32,7 +32,7 @@ parser = argparse.ArgumentParser(description="Perturb executable samples with va
 parser.add_argument("-i", "--input", required=True, help="Path to input directory containing .exe files")
 parser.add_argument("-o", "--output", required=True, help="Path to directory where modified samples will be saved")
 parser.add_argument("--multi", action="store_true", help="Enable multiprocessing (default: off)")
-parser.add_argument("-j", "--jobs", type=int, default=cpu_count(), help="Number of parallel processes (used only if --multi is set)")
+parser.add_argument("-j", "--jobs", type=int, default=int(cpu_count()/2), help="Number of parallel processes (used only if --multi is set)")
 
 args = parser.parse_args()
 input_dir = args.input
@@ -41,11 +41,25 @@ use_multi = args.multi
 num_jobs = args.jobs
 
 sample_paths = []
+target_dir = ['picsys' , 'parite' , 'aenjaris' , 'ardurk' , 'gamarue' , 'fareit' , 'tinba' , 'drolnux' , 'neshta' , 'spigot' , 'bladabindi' , 'xiaoba' , 'simbot' , 'oberal' , 'antavmu' , 'gandcrab' , 'hematite' , 'pioneer' , 'installcore' , 'mepaow' , 'blackmoon' , 'onlinegames' , 'banload' , 'trickbot' , 'fsysna' , 'kovter' , 'softcnapp' , 'ulpm' , 'ipamor' , 'ulise' , 'nitol' , 'fasong' , 'cryptinject' , 'mbrlock' , 'blackshades' , 'glupteba' , 'mailru' , 'benjamin' , 'snojan' , 'winwrapper' , 'linkury' , 'downloadsponsor' , 'diskfill' , 'pistolar' , 'ribaj' , 'xiquitir' , 'resur' , 'lebreat' , 'expiro' , 'msilkrypt']
+
 for root, dirs, files in os.walk(input_dir):
-    for file in files:
-        if file.endswith(".exe"):
-            full_path = os.path.join(root, file)
-            sample_paths.append((full_path, save_dir))
+    last_dir = os.path.basename(root)
+    if not target_dir or last_dir in target_dir:
+        for file in files:
+            if file.endswith(".exe"):
+                full_path = os.path.join(root, file)
+
+                # 상대 디렉터리 경로
+                rel_dir = os.path.relpath(root, input_dir)
+
+                # 출력 디렉터리 구성
+                target_subdir = os.path.join(save_dir, rel_dir)
+                os.makedirs(target_subdir, exist_ok=True)
+
+                # 파일 경로가 아닌, 디렉터리만 넘김
+                sample_paths.append((full_path, target_subdir))
+
 
 # ✅ 메인 실행
 if __name__ == '__main__':
