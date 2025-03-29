@@ -12,20 +12,44 @@ perts = [
 ]
 
 # perturbation 실행 함수
+# def process_sample(sample_path_and_savedir):
+#     sample_path, save_dir = sample_path_and_savedir
+#     sample = os.path.basename(sample_path)
+#     print(f"[+] Processing: {sample}")
+
+#     try:
+#         mod = Modifier(sample_path, save_dir)
+#         for pert in perts:
+#             try:
+#                 eval(f"mod.{pert}()")
+#             except Exception as e:
+#                 print(f"[!] Error in {pert} for {sample}: {e}")
+#     except Exception as e:
+#         print(f"[!] Failed to process {sample}: {e}")
+
 def process_sample(sample_path_and_savedir):
     sample_path, save_dir = sample_path_and_savedir
     sample = os.path.basename(sample_path)
-    print(f"[+] Processing: {sample}")
+    sample_name, _ = os.path.splitext(sample)
 
+    print(f"[+] Processing: {sample}")
     try:
         mod = Modifier(sample_path, save_dir)
         for pert in perts:
+            out_file = os.path.join(save_dir, f"{sample_name}|{pert}.exe")
+            if os.path.exists(out_file):
+                print(f"[-] Skipping {pert} (already exists for {sample})")
+                continue
             try:
+                print(f"[~] Running {pert} for {sample}")
                 eval(f"mod.{pert}()")
             except Exception as e:
                 print(f"[!] Error in {pert} for {sample}: {e}")
     except Exception as e:
         print(f"[!] Failed to process {sample}: {e}")
+
+
+
 
 # ✅ argparse 설정
 parser = argparse.ArgumentParser(description="Perturb executable samples with various methods.")
@@ -41,7 +65,7 @@ use_multi = args.multi
 num_jobs = args.jobs
 
 sample_paths = []
-target_dir = []
+target_dir = ['picsys' , 'parite' , 'aenjaris' , 'ardurk' , 'gamarue' , 'fareit' , 'tinba' , 'drolnux' , 'neshta' , 'spigot' , 'bladabindi' , 'xiaoba' , 'simbot' , 'oberal' , 'antavmu' , 'gandcrab' , 'hematite' , 'pioneer' , 'installcore' , 'mepaow' , 'blackmoon' , 'onlinegames' , 'banload' , 'trickbot' , 'fsysna' , 'kovter' , 'softcnapp' , 'ulpm' , 'ipamor' , 'ulise' , 'nitol' , 'fasong' , 'cryptinject' , 'mbrlock' , 'blackshades' , 'glupteba' , 'mailru' , 'benjamin' , 'snojan' , 'winwrapper' , 'linkury' , 'downloadsponsor' , 'diskfill' , 'pistolar' , 'ribaj' , 'xiquitir' , 'resur' , 'lebreat' , 'expiro' , 'msilkrypt']
 
 for root, dirs, files in os.walk(input_dir):
     last_dir = os.path.basename(root)
