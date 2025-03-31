@@ -68,7 +68,7 @@ def decode_utf16le_string(data, start):
 
 
 def modify_data_sections(section_name = None, data = None , function_list = None):
-    print(section_name)
+    print("hi : ",section_name)
     modified_data = bytearray(data)
     #print("mdd len : ",len(modified_data))
     i = 0
@@ -407,7 +407,16 @@ def change_resource_case(file_path, output_path):
                 (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE'])) and \
                not ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and \
                     (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) and \
-                    not (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE'])):
+                    not (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE'])) and\
+                not section_name.startswith(('upx', '.upx')):
+
+#             if ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) or
+#                 (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE'])) and \
+#                not ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) and
+#                     (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_EXECUTE']) and
+#                     not (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_WRITE'])) and \
+#                not section.Name.strip(b'\x00').lower().startswith(b'.upx',b'upx'):
+
 
 
                 print(f"Processing section: {section_name}")
