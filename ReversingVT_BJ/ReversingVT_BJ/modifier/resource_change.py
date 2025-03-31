@@ -85,7 +85,6 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                 # UTF-16 LE 문자열인지 확인
                 if is_utf16le_string(modified_data, start):
                     utf16_text, end = decode_utf16le_string(modified_data, start)
-                    print(utf16_text)
                     
                     if  (
                             (re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ])', utf16_text)) 
@@ -170,7 +169,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             #print("else : ", utf16_text, type(utf16_text))
                             
                             if utf16_text in api_list:
-                                print("api : ",utf16_text)
+
                                 modified_text = modified_data[start:end]
                                 modified_text = bytes(modified_text)
                                 modified_data[start:end] = modified_text
