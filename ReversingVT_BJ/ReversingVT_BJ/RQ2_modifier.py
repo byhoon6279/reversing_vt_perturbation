@@ -18,15 +18,15 @@ pert_abbr = {
     "content_shifting": "CS",
     "jmp_overlay_back": "JOB",
     "overlay_append": "OAP",
-    "instruction_change": "IC",
     "resource_change": "RC",
-    "section_increase": "SIN"
+    "section_increase": "SIN",
+    "instruction_change": "IC"
 }
 
 perts = list(pert_abbr.keys())
 
 # perturbation 조합 생성 (2개 ~ 14개)
-all_combinations = {i: list(itertools.combinations(perts, i)) for i in range(2, 15)}
+#all_combinations = {i: list(itertools.combinations(perts, i)) for i in range(2, 15)}
 
 def log_message(message, log_file_path):
     print(message)
@@ -37,7 +37,7 @@ def process_directory(directory, num, pert_list, input_dir, base_save_dir, tmp_b
     save_dir = os.path.join(base_save_dir, f"{num}_perts")
     tmp_dir = os.path.join(tmp_base_dir, f"{num}_perts")
     os.makedirs(tmp_dir, exist_ok=True)
-
+    
     for root, _, files in os.walk(directory):
         for file in files:
             full_path = os.path.join(root, file)
@@ -114,9 +114,14 @@ if __name__ == "__main__":
     with multiprocessing.Pool(num_workers) as pool:
         pool.starmap(
             process_directory,
-            [(d, num, pert_list, input_dir, base_save_dir, tmp_base_dir, log_file_path)
-             for num in range(2, 15) for pert_list in all_combinations[num] for d in sub_dirs]
+            [(d, len(pert_abbr), list(pert_abbr.keys()), input_dir, base_save_dir, tmp_base_dir, log_file_path)
+             for d in sub_dirs]
         )
+#         pool.starmap(
+#             process_directory,
+#             [(d, num, pert_list, input_dir, base_save_dir, tmp_base_dir, log_file_path)
+#              for num in range(2, 15) for pert_list in all_combinations[num] for d in sub_dirs]
+#         )
 
     log_message("\n✅ [ALL PERTURBATION COMBINATIONS DONE] 모든 조합 완료!", log_file_path)
 
