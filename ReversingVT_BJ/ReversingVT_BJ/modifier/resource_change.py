@@ -227,6 +227,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         modified_text = new_text.upper().encode('ascii')
                         
                     modified_data[start:end] = modified_text
+                    i = end
                     continue
                     
                                     
@@ -267,6 +268,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                         modified_text = modified_data[start:end]
                         modified_text = bytes(modified_text)
                         modified_data[start:end] = modified_text
+                        i = end
                         continue
                         
                     if  (
@@ -287,6 +289,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             modified_text = ''.join(random_list)
                             modified_text = bytes(modified_text, 'utf-8')
                             modified_data[start:end] = modified_text
+                            i = end
                             continue
 
                     if len(text)>5 and re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ%])',text):
@@ -310,6 +313,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 modified_text += split_text
                         modified_text = bytes(modified_text, 'utf-8')
                         modified_data[start:end] = modified_text
+                        i = end
                         continue
                         
                     else:
@@ -323,6 +327,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             modified_text = bytes(modified_text, 'utf-8')
 
                             modified_data[start:end] = modified_text
+                            i = end
                             continue
                         
                         
@@ -337,6 +342,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                             modified_text = ''.join(random_list)
                             modified_text = bytes(modified_text, 'utf-8')
                             modified_data[start:end] = modified_text
+                            i = end
                             continue
                         
                         if ('.reloc' not in section_name and (len(text)>=5 and '%' not in text and not re.findall(r'[-+,#/\?^@\"※~ㆍ!』;*%\{\}\<\>‘|\(\)\[\]`\'…》\”\“\’·$=_:.&]', text) and '0x' not in text)):
@@ -347,17 +353,20 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 #new_text = text + '.dll'
                                 modified_text = text.upper().encode('ascii')
                             modified_data[start:end] = modified_text
+                            i = end
                             continue
                                
                         modified_text = modified_data[start:end]
                         modified_text = bytes(modified_text)
                         modified_data[start:end] = modified_text
+                        i = end
                         continue      
                         
                 else:
                     modified_text = modified_data[start:end]
                     modified_text = bytes(modified_text)
                     modified_data[start:end] = modified_text
+                    i = end
                     continue
             else:
                 i += 1
@@ -365,7 +374,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
         except Exception as e:
             print(f"Error processing text: {text}, section {section_name}: {str(e)}")
 
-            i = end  # i를 end로 설정하여 다음 블록으로 넘어가도록 함
+            i += 1   # ✅ end 보장 안 되므로 안전하게 이걸 써라
             continue
 
     print(f"Returning modified data for section: {section_name}, {len(modified_data)}")
