@@ -17,6 +17,32 @@ import multiprocessing
 old_rawPointer = 0
 modified_section_data = {}
 
+import multiprocessing
+
+def modify_overlay_worker(queue, data, function_list):
+    try:
+        result = modify_data_sections("overlay", data, function_list)
+        queue.put(result)
+    except Exception as e:
+        print("Worker Exception:", e)
+        queue.put(None)
+
+def safe_modify_overlay_with_timeout(overlay_data, function_list, timeout_sec=300):
+    queue = multiprocessing.Queue()
+    p = multiprocessing.Process(target=modify_overlay_worker, args=(queue, overlay_data, function_list))
+    p.start()
+    p.join(timeout=timeout_sec)
+
+    if p.is_alive():
+        print(f"[!] Overlay processing timed out after {timeout_sec} seconds. Skipping modification.")
+        p.terminate()
+        p.join()
+        return overlay_data  # 원본 유지
+    else:
+        result = queue.get()
+        return result if result else overlay_data
+
+
 @lru_cache(maxsize=None)
 def get_imported_functions(pe):
     imported_functions = []
@@ -85,7 +111,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                 # UTF-16 LE 문자열인지 확인
                 if is_utf16le_string(modified_data, start):
                     utf16_text, end = decode_utf16le_string(modified_data, start)
-                    
+
                     if  (
                             (re.findall(r'(%[-+0# ]*\d*(?:\.\d+)?[diuoxXfFeEgGaAcCsSpnYZPRTUVWzZ])', utf16_text)) 
                             or 
@@ -112,7 +138,7 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 #re.findall(r'^[a-zA-Z()._]+$',utf16_text) and len(utf16_text) >= 5
                             )
                         ):
-                        #print("target : ",utf16_text, re.findall(r'(?i)^[a-z\s]+$', utf16_text))
+                        print("target : ",utf16_text, re.findall(r'(?i)^[a-z\s]+$', utf16_text))
                         if not re.findall(r'(?i)^[a-z\s]+$', utf16_text):
                             #print("   modified : ",utf16_text)                            
                             if len(modified_data[start:end]) <= len(letters_set):
@@ -159,8 +185,6 @@ def modify_data_sections(section_name = None, data = None , function_list = None
                                 modified_text = modified_data[start:end]
                                 
                             modified_utf16_data = modified_text
-                            
-                        
 
                     else:
                         # 그렇지 않은 경우, 원래 데이터를 유지
@@ -457,7 +481,9 @@ def change_resource_case(file_path, output_path):
         if len(pe_data) > last_section_end:
             overlay_data = pe_data[last_section_end:]
             print("Overlay data detected and will be processed.")
-            modified_overlay_data = modify_data_sections("overlay", overlay_data, function_list)
+            #modified_overlay_data = modify_data_sections("overlay", overlay_data, function_list)
+            #modified_data += modified_overlay_data
+            modified_overlay_data = safe_modify_overlay_with_timeout(overlay_data, function_list)
             modified_data += modified_overlay_data
 
     except Exception as e:

@@ -115,7 +115,7 @@ def find_instruction_context(instructions, target_ip):
         else:
             break
 
-        return next_instructions
+    return next_instructions
 
 @lru_cache(maxsize=None)
 def to_little_endian(hex_str):
@@ -241,7 +241,6 @@ def disassemble_and_modify(filepath, output_filepath):
     
     
     for section in pe.sections:
-        #print(section)
 #         if (not (section.Name.rstrip(b'\x00').lower().endswith(b'data') or section.Name.rstrip(b'\x00').lower() == b'.rsrc' or section.Name.rstrip(b'\x00').lower() == b'.reloc')) and \
 #            ((section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_CNT_CODE']) or \
 #             (section.Characteristics & pefile.SECTION_CHARACTERISTICS['IMAGE_SCN_MEM_READ']) or \
@@ -276,9 +275,10 @@ def disassemble_and_modify(filepath, output_filepath):
             # 실행할 코드
 
             text_section = section
+            #print(section.Name)
             
             if text_section is None or text_section.SizeOfRawData == 0:
-                print("Failed to find .text section")
+                #print("Failed to find .text section")
                 continue
             
             new_text = b''
@@ -310,6 +310,7 @@ def disassemble_and_modify(filepath, output_filepath):
             formatter = Formatter(FormatterSyntax.NASM)
 
             for instr in decoder:
+                #print(instr)
                 try:
 
                     disasm = formatter.format(instr)
