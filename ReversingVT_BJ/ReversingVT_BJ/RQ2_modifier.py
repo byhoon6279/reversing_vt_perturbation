@@ -9,7 +9,7 @@ import multiprocessing
 pert_abbr = {
     "modify_dos_header": "MDH",
     "extend_dos_stub": "EDS",
-    "coff_header": "COFF",
+    "coff_header": "CH",
     "rich_header": "RH",
     "optional_header": "OH",
     "section_rename": "SRN",
